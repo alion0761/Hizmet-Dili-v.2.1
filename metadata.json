@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Hizmet Dili",
+  "description": "Real-time simultaneous translation from Turkish to English, Dutch, Arabic, and Russian using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
