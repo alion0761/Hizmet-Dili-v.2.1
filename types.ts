@@ -6,7 +6,8 @@ export enum TargetLanguage {
   RUSSIAN = 'Russian',
   GERMAN = 'German',
   ITALIAN = 'Italian',
-  FRENCH = 'French'
+  FRENCH = 'French',
+  UKRAINIAN = 'Ukrainian'
 }
 
 export interface ChatMessage {

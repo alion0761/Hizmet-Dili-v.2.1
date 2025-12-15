@@ -20,12 +20,147 @@ const LANGUAGE_META = [
   { code: TargetLanguage.GERMAN, name: 'Almanca', flag: '🇩🇪', short: 'DE', locale: 'de-DE' },
   { code: TargetLanguage.ITALIAN, name: 'İtalyanca', flag: '🇮🇹', short: 'IT', locale: 'it-IT' },
   { code: TargetLanguage.FRENCH, name: 'Fransızca', flag: '🇫🇷', short: 'FR', locale: 'fr-FR' },
+  { code: TargetLanguage.UKRAINIAN, name: 'Ukraynaca', flag: '🇺🇦', short: 'UA', locale: 'uk-UA' },
 ];
 
 const getLangDetails = (lang?: TargetLanguage) => {
     if (!lang) return LANGUAGE_META[0];
     return LANGUAGE_META.find(l => l.code === lang) || LANGUAGE_META[0];
 };
+
+// --- ROBUST CLIENT-SIDE LANGUAGE DETECTION ---
+
+// Comprehensive list of "Stop Words" / High frequency words for Latin-script languages.
+// This is critical for distinguishing between languages that share the same alphabet.
+const COMMON_WORDS: Record<string, Set<string>> = {
+  [TargetLanguage.TURKISH]: new Set([
+    've', 'bir', 'bu', 'da', 'de', 'için', 'ben', 'sen', 'o', 'biz', 'siz', 'onlar', 
+    'ama', 'fakat', 'ile', 'ne', 'gibi', 'var', 'yok', 'çok', 'daha', 'en', 'kadar', 
+    'olarak', 'diye', 'zaman', 'şey', 'bunu', 'şunu', 'bana', 'sana', 'ona', 'evet', 
+    'hayır', 'merhaba', 'nasıl', 'neden', 'niçin', 'kim', 'mu', 'mı', 'mi', 'mü'
+  ]),
+  [TargetLanguage.ENGLISH]: new Set([
+    'the', 'and', 'is', 'it', 'to', 'in', 'you', 'that', 'of', 'for', 'on', 'are', 
+    'with', 'as', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 
+    'word', 'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 
+    'there', 'use', 'an', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'hello', 'hi'
+  ]),
+  [TargetLanguage.DUTCH]: new Set([
+    'de', 'het', 'een', 'en', 'van', 'ik', 'te', 'dat', 'die', 'in', 'is', 'op', 
+    'voor', 'met', 'niet', 'zijn', 'er', 'wat', 'maar', 'om', 'ook', 'als', 'bij', 
+    'of', 'uw', 'je', 'hij', 'u', 'aan', 'zo', 'dan', 'hij', 'wij', 'we', 'ze', 
+    'hallo', 'ja', 'nee', 'goed', 'waar', 'waarom', 'hoe'
+  ]),
+  [TargetLanguage.GERMAN]: new Set([
+    'die', 'der', 'und', 'in', 'zu', 'den', 'das', 'nicht', 'von', 'sie', 'ist', 
+    'des', 'sich', 'mit', 'dem', 'dass', 'er', 'es', 'ein', 'ich', 'auf', 'so', 
+    'eine', 'auch', 'als', 'an', 'nach', 'wie', 'im', 'für', 'man', 'aber', 'aus', 
+    'hallo', 'ja', 'nein', 'wir', 'ihr', 'warum', 'wer'
+  ]),
+  [TargetLanguage.FRENCH]: new Set([
+    'le', 'la', 'les', 'de', 'et', 'un', 'une', 'est', 'je', 'à', 'en', 'que', 
+    'du', 'il', 'elle', 'dans', 'pour', 'pas', 'sur', 'au', 'ce', 'ne', 'plus', 
+    'se', 'par', 'avec', 'tout', 'faire', 'son', 'ses', 'sa', 'mais', 'nous', 
+    'vous', 'ils', 'elles', 'bonjour', 'oui', 'non', 'merci'
+  ]),
+  [TargetLanguage.ITALIAN]: new Set([
+    'il', 'la', 'i', 'gli', 'le', 'di', 'e', 'che', 'un', 'una', 'è', 'in', 
+    'per', 'non', 'con', 'sono', 'ma', 'come', 'questo', 'quello', 'più', 'o', 
+    'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'ciao', 'si', 'no', 'perché', 
+    'dove', 'quando', 'chi'
+  ]),
+  [TargetLanguage.UKRAINIAN]: new Set([
+    'і', 'в', 'на', 'не', 'що', 'з', 'я', 'як', 'це', 'до', 'ми', 'ти', 'він', 'вона', 'вони', 
+    'але', 'так', 'ні', 'привіт', 'дякую', 'будь', 'ласка', 'добрий', 'день', 'мене', 'звати',
+    'дуже', 'добре', 'де', 'коли', 'хто', 'чому', 'ви', 'вас', 'мені', 'нам', 'їх'
+  ])
+};
+
+const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLanguage): TargetLanguage => {
+  if (!text || text.length < 2) return langA; 
+
+  const t = text.toLowerCase().trim();
+
+  // 1. Script-based Checks (100% Accuracy for distinct scripts)
+  const isArabic = /[\u0600-\u06FF]/.test(text);
+  const isCyrillic = /[\u0400-\u04FF]/.test(text);
+
+  if (langA === TargetLanguage.ARABIC && isArabic) return langA;
+  if (langB === TargetLanguage.ARABIC && isArabic) return langB;
+  
+  if (isCyrillic) {
+      // Ukrainian specific characters (not present in Russian)
+      const isUkrainianSpecific = /[іїєґІЇЄҐ]/.test(text);
+      // Russian specific characters (not present in Ukrainian)
+      const isRussianSpecific = /[ыэёъЫЭЁЪ]/.test(text);
+
+      if (isUkrainianSpecific) {
+           if (langA === TargetLanguage.UKRAINIAN) return langA;
+           if (langB === TargetLanguage.UKRAINIAN) return langB;
+      }
+      if (isRussianSpecific) {
+           if (langA === TargetLanguage.RUSSIAN) return langA;
+           if (langB === TargetLanguage.RUSSIAN) return langB;
+      }
+
+      // Fallback for Cyrillic: if one language is Cyrillic-based and the other is not, pick the Cyrillic one.
+      const isACyrillicLang = langA === TargetLanguage.RUSSIAN || langA === TargetLanguage.UKRAINIAN;
+      const isBCyrillicLang = langB === TargetLanguage.RUSSIAN || langB === TargetLanguage.UKRAINIAN;
+      
+      if (isACyrillicLang && !isBCyrillicLang) return langA;
+      if (!isACyrillicLang && isBCyrillicLang) return langB;
+      
+      // If both are Cyrillic (e.g. RU vs UA selected), continue to frequency scoring
+  }
+
+  // 2. Strong Character Indicators (Unique chars for Latin variants)
+  // Turkish specific: 'ğ', 'ı' (dotless i), 'ş'
+  if (/[ğıİşŞ]/.test(text)) {
+      if (langA === TargetLanguage.TURKISH) return langA;
+      if (langB === TargetLanguage.TURKISH) return langB;
+  }
+  // German specific: 'ß', 'ä', 'ö', 'ü' (Umlauts exist in TR too, but combined with lack of TR chars helps)
+  if (/ß/.test(text)) {
+      if (langA === TargetLanguage.GERMAN) return langA;
+      if (langB === TargetLanguage.GERMAN) return langB;
+  }
+  // French: 'œ'
+  if (/œ/.test(text)) {
+      if (langA === TargetLanguage.FRENCH) return langA;
+      if (langB === TargetLanguage.FRENCH) return langB;
+  }
+
+  // 3. Frequency Scoring based on Expanded Dictionary
+  const getScore = (l: TargetLanguage) => {
+      if (!COMMON_WORDS[l]) return 0;
+      
+      const words = t.split(/[\s,.?!:;"']+/); // Split by punctuation
+      let matchCount = 0;
+      
+      for (const w of words) {
+          if (w.length < 2) continue; // Skip single letters (except 'o' in TR, but kept simple)
+          if (COMMON_WORDS[l].has(w)) {
+              matchCount++;
+          }
+      }
+      return matchCount;
+  };
+
+  const scoreA = getScore(langA);
+  const scoreB = getScore(langB);
+
+  // Debugging log (optional, remove in prod)
+  // console.log(`Detect: "${t.substring(0, 20)}..." | ${langA}: ${scoreA} | ${langB}: ${scoreB}`);
+
+  if (scoreA > scoreB) return langA;
+  if (scoreB > scoreA) return langB;
+
+  // 4. Tie-breaker / Fallback
+  // If no common words found (short sentences), assume Source language as default
+  // unless we have earlier script matches.
+  return langA;
+};
+
 
 // Mock Offline Packs
 const INITIAL_PACKS: OfflinePack[] = [
@@ -36,6 +171,7 @@ const INITIAL_PACKS: OfflinePack[] = [
   { id: 'tr-de', pair: 'TR ↔ DE', name: 'Almanca', size: '44 MB', downloaded: false, progress: 0 },
   { id: 'tr-it', pair: 'TR ↔ IT', name: 'İtalyanca', size: '43 MB', downloaded: false, progress: 0 },
   { id: 'tr-fr', pair: 'TR ↔ FR', name: 'Fransızca', size: '46 MB', downloaded: false, progress: 0 },
+  { id: 'tr-ua', pair: 'TR ↔ UA', name: 'Ukraynaca', size: '47 MB', downloaded: false, progress: 0 },
 ];
 
 const App: React.FC = () => {
@@ -268,22 +404,28 @@ const App: React.FC = () => {
       const sourceDetails = getLangDetails(sourceLang);
       const targetDetails = getLangDetails(targetLang);
 
-      // UPDATED BIDIRECTIONAL SYSTEM PROMPT WITH DYNAMIC PAIRS
-      const systemPrompt = `You are an expert bidirectional simultaneous interpreter.
-Your task is to facilitate a real-time conversation between a ${sourceDetails.name} speaker and a ${targetDetails.name} speaker.
+      // UPDATED BIDIRECTIONAL SYSTEM PROMPT
+      const systemPrompt = `You are a professional bidirectional interpreter.
+Languages: ${sourceDetails.name} <-> ${targetDetails.name}.
 
-STRICT INSTRUCTIONS:
-1. Bidirectional Translation:
-   - Input: ${sourceDetails.name} -> Output: ${targetDetails.name}
-   - Input: ${targetDetails.name} -> Output: ${sourceDetails.name}
-   
-2. Execution:
-   - Identify the language spoken automatically (between ${sourceDetails.name} and ${targetDetails.name}).
-   - Translate immediately.
-   - Do NOT add conversational fillers.
-   - Do NOT translate silence.
+CORE FUNCTION:
+1. Listen to the input audio.
+2. Detect the language automatically.
+3. Translate immediately to the OTHER language.
 
-Output strictly audio of the translation.`;
+STRICT PROTOCOL (DO NOT VIOLATE):
+- IF Input is ${sourceDetails.name} -> Speak ONLY ${targetDetails.name}.
+- IF Input is ${targetDetails.name} -> Speak ONLY ${sourceDetails.name}.
+- NEVER repeat the input content in the same language.
+- NEVER respond to the user (do not say "Okay", "Understood"). Just translate.
+- Do not translate silence or background noise.
+- Maintain the original tone and brevity.
+
+TIMING & PAUSES (CRITICAL):
+- The speaker may pause for 1-2 seconds to breathe or think.
+- DO NOT translate immediately upon silence if the sentence is grammatically incomplete.
+- WAIT for the thought to be finished (semantic completeness).
+- Prioritize accuracy and full sentences over extreme speed.`;
 
       // Select Voice
       const voiceName = voiceType === 'female' ? 'Kore' : 'Fenrir';
@@ -348,12 +490,21 @@ Output strictly audio of the translation.`;
     if (msg.serverContent?.turnComplete) {
        const inputTx = currentInputTranscription.current.trim();
        const outputTx = currentOutputTranscription.current.trim();
+       
        if (inputTx || outputTx) {
-         // Assuming online flow: Input is primarily from Source, Output is primarily Target
-         // (In a true bidirectional auto-detect scenario, this is an approximation)
-         addMessage('user', inputTx || '...', sourceLang);
-         addMessage('model', outputTx || '...', targetLang);
+         // Auto-detect input language to correctly assign 'User' and 'Model' roles relative to the languages
+         // If input detected as Target, then User spoke Target -> Model spoke Source.
+         // If input detected as Source, then User spoke Source -> Model spoke Target.
+         
+         const detectedInputLang = detectLanguage(inputTx, sourceLang, targetLang);
+         const detectedOutputLang = detectedInputLang === sourceLang ? targetLang : sourceLang;
+         
+         // In a pure bidirectional sense, 'User' is just the microphone input.
+         // But visually we want to attribute the languages correctly.
+         addMessage('user', inputTx || '...', detectedInputLang);
+         addMessage('model', outputTx || '...', detectedOutputLang);
        }
+       
        currentInputTranscription.current = '';
        currentOutputTranscription.current = '';
        setRealtimeInput('');
@@ -580,6 +731,12 @@ Output strictly audio of the translation.`;
   const sourceDetails = getLangDetails(sourceLang);
   const targetDetails = getLangDetails(targetLang);
 
+  // Logic to determine which Realtime Input belongs to which box in Split View
+  // If realtimeInput looks like Target Lang, it goes to Top Box (Target).
+  // If realtimeInput looks like Source Lang, it goes to Bottom Box (Source).
+  const detectedRealtimeInputLang = detectLanguage(realtimeInput, sourceLang, targetLang);
+  const isInputTarget = detectedRealtimeInputLang === targetLang;
+
   return (
     <div className="h-[100dvh] w-full bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden select-none">
       
@@ -654,7 +811,8 @@ Output strictly audio of the translation.`;
                      </div>
                      <div className="text-center">
                          <div className="text-3xl font-bold text-emerald-300 leading-snug">
-                            {realtimeOutput || lastModelMsg?.text || "..."}
+                            {/* IF User speaks Target (Dutch) -> Show Input Here. ELSE Show Translation (Output) */}
+                            {isInputTarget ? realtimeInput : (realtimeOutput || lastModelMsg?.text || "...")}
                          </div>
                      </div>
                 </div>
@@ -667,7 +825,8 @@ Output strictly audio of the translation.`;
                      </div>
                      <div className="text-center">
                          <div className="text-3xl font-bold text-slate-100 leading-snug">
-                            {realtimeInput || lastUserMsg?.text || "..."}
+                            {/* IF User speaks Source (Turkish) -> Show Input Here. ELSE Show Translation (Output) */}
+                            {!isInputTarget ? realtimeInput : (realtimeOutput || lastUserMsg?.text || "...")}
                          </div>
                      </div>
                 </div>
@@ -740,9 +899,8 @@ Output strictly audio of the translation.`;
                 {realtimeInput && (
                   <div className="flex flex-col items-start opacity-70">
                      <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse flex items-center gap-1"><Mic size={10}/> 
-                     {isOfflineActive 
-                       ? (isOfflineReverse ? targetDetails.short : sourceDetails.short) 
-                       : 'GİRİŞ'}...
+                     {/* Show which language is being detected/spoken live */}
+                     {getLangDetails(detectedRealtimeInputLang).short}...
                      </span>
                      <div className="max-w-[85%] px-5 py-3 bg-slate-800/50 border border-slate-700 border-dashed text-slate-300 rounded-2xl rounded-tl-sm">
                        {realtimeInput}
@@ -969,6 +1127,7 @@ Output strictly audio of the translation.`;
                        if (pack.id.includes('de')) flag = '🇩🇪';
                        if (pack.id.includes('it')) flag = '🇮🇹';
                        if (pack.id.includes('fr')) flag = '🇫🇷';
+                       if (pack.id.includes('ua')) flag = '🇺🇦';
                        
                        return (
                        <div key={pack.id} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between">
