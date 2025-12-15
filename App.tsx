@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { TargetLanguage, ChatMessage, OfflinePack } from './types';
+import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
-import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare } from 'lucide-react';
+import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves } from 'lucide-react';
 
 // Live API Configuration
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
@@ -29,9 +29,6 @@ const getLangDetails = (lang?: TargetLanguage) => {
 };
 
 // --- ROBUST CLIENT-SIDE LANGUAGE DETECTION ---
-
-// Comprehensive list of "Stop Words" / High frequency words for Latin-script languages.
-// This is critical for distinguishing between languages that share the same alphabet.
 const COMMON_WORDS: Record<string, Set<string>> = {
   [TargetLanguage.TURKISH]: new Set([
     've', 'bir', 'bu', 'da', 'de', 'için', 'ben', 'sen', 'o', 'biz', 'siz', 'onlar', 
@@ -81,7 +78,6 @@ const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLangua
 
   const t = text.toLowerCase().trim();
 
-  // 1. Script-based Checks (100% Accuracy for distinct scripts)
   const isArabic = /[\u0600-\u06FF]/.test(text);
   const isCyrillic = /[\u0400-\u04FF]/.test(text);
 
@@ -89,9 +85,7 @@ const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLangua
   if (langB === TargetLanguage.ARABIC && isArabic) return langB;
   
   if (isCyrillic) {
-      // Ukrainian specific characters (not present in Russian)
       const isUkrainianSpecific = /[іїєґІЇЄҐ]/.test(text);
-      // Russian specific characters (not present in Ukrainian)
       const isRussianSpecific = /[ыэёъЫЭЁЪ]/.test(text);
 
       if (isUkrainianSpecific) {
@@ -102,46 +96,32 @@ const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLangua
            if (langA === TargetLanguage.RUSSIAN) return langA;
            if (langB === TargetLanguage.RUSSIAN) return langB;
       }
-
-      // Fallback for Cyrillic: if one language is Cyrillic-based and the other is not, pick the Cyrillic one.
       const isACyrillicLang = langA === TargetLanguage.RUSSIAN || langA === TargetLanguage.UKRAINIAN;
       const isBCyrillicLang = langB === TargetLanguage.RUSSIAN || langB === TargetLanguage.UKRAINIAN;
-      
       if (isACyrillicLang && !isBCyrillicLang) return langA;
       if (!isACyrillicLang && isBCyrillicLang) return langB;
-      
-      // If both are Cyrillic (e.g. RU vs UA selected), continue to frequency scoring
   }
 
-  // 2. Strong Character Indicators (Unique chars for Latin variants)
-  // Turkish specific: 'ğ', 'ı' (dotless i), 'ş'
   if (/[ğıİşŞ]/.test(text)) {
       if (langA === TargetLanguage.TURKISH) return langA;
       if (langB === TargetLanguage.TURKISH) return langB;
   }
-  // German specific: 'ß', 'ä', 'ö', 'ü' (Umlauts exist in TR too, but combined with lack of TR chars helps)
   if (/ß/.test(text)) {
       if (langA === TargetLanguage.GERMAN) return langA;
       if (langB === TargetLanguage.GERMAN) return langB;
   }
-  // French: 'œ'
   if (/œ/.test(text)) {
       if (langA === TargetLanguage.FRENCH) return langA;
       if (langB === TargetLanguage.FRENCH) return langB;
   }
 
-  // 3. Frequency Scoring based on Expanded Dictionary
   const getScore = (l: TargetLanguage) => {
       if (!COMMON_WORDS[l]) return 0;
-      
-      const words = t.split(/[\s,.?!:;"']+/); // Split by punctuation
+      const words = t.split(/[\s,.?!:;"']+/);
       let matchCount = 0;
-      
       for (const w of words) {
-          if (w.length < 2) continue; // Skip single letters (except 'o' in TR, but kept simple)
-          if (COMMON_WORDS[l].has(w)) {
-              matchCount++;
-          }
+          if (w.length < 2) continue;
+          if (COMMON_WORDS[l].has(w)) matchCount++;
       }
       return matchCount;
   };
@@ -149,18 +129,11 @@ const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLangua
   const scoreA = getScore(langA);
   const scoreB = getScore(langB);
 
-  // Debugging log (optional, remove in prod)
-  // console.log(`Detect: "${t.substring(0, 20)}..." | ${langA}: ${scoreA} | ${langB}: ${scoreB}`);
-
   if (scoreA > scoreB) return langA;
   if (scoreB > scoreA) return langB;
 
-  // 4. Tie-breaker / Fallback
-  // If no common words found (short sentences), assume Source language as default
-  // unless we have earlier script matches.
   return langA;
 };
-
 
 // Mock Offline Packs
 const INITIAL_PACKS: OfflinePack[] = [
@@ -175,40 +148,40 @@ const INITIAL_PACKS: OfflinePack[] = [
 ];
 
 const App: React.FC = () => {
-  // Independent Source and Target Languages
   const [sourceLang, setSourceLang] = useState<TargetLanguage>(TargetLanguage.TURKISH);
   const [targetLang, setTargetLang] = useState<TargetLanguage>(TargetLanguage.ENGLISH);
-  
-  // Voice Preference: 'female' | 'male'
   const [voiceType, setVoiceType] = useState<'female' | 'male'>('female');
-  
-  // UI State for Language Selector
   const [selectorType, setSelectorType] = useState<'source' | 'target' | null>(null);
 
-  // View Modes
-  const [viewMode, setViewMode] = useState<'chat' | 'split'>('chat');
+  // View Modes: 'chat' | 'split' | 'listen' | 'archive'
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive'>('chat');
   const [focusedMessage, setFocusedMessage] = useState<ChatMessage | null>(null);
+  const [openedArchive, setOpenedArchive] = useState<ArchivedSession | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   
-  // Offline Direction State: false = Source->Target, true = Target->Source
+  // Listen Mode specific state
+  const [isListenModeActive, setIsListenModeActive] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
   const [isOfflineReverse, setIsOfflineReverse] = useState(false);
-  
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [savedSessions, setSavedSessions] = useState<ArchivedSession[]>([]);
   const [error, setError] = useState<string | null>(null);
   
-  // Real-time Display States
   const [realtimeInput, setRealtimeInput] = useState('');
   const [realtimeOutput, setRealtimeOutput] = useState('');
   
-  // Offline / Network State
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [forceOfflineMode, setForceOfflineMode] = useState(false);
+  // NEW: Noise Mode (Push-to-Talk)
+  const [isNoiseMode, setIsNoiseMode] = useState(false);
+  const [isHoldingMic, setIsHoldingMic] = useState(false);
+
   const [showSettings, setShowSettings] = useState(false);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>(INITIAL_PACKS);
   
-  // Audio Context Refs
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const inputAnalyserRef = useRef<AnalyserNode | null>(null);
@@ -216,7 +189,6 @@ const App: React.FC = () => {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   
-  // Logic Refs
   const aiClientRef = useRef<GoogleGenAI | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const activeSessionRef = useRef<any>(null);
@@ -225,12 +197,13 @@ const App: React.FC = () => {
   const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
   const isTransmittingRef = useRef(false);
   
-  // Transcription Buffers
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
   const recognitionRef = useRef<any>(null);
 
-  // 1. Initialize & Network
+  // Smart Scrolling Ref
+  const isUserScrolledUpRef = useRef(false);
+
   useEffect(() => {
     if (process.env.API_KEY) {
       aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -251,11 +224,20 @@ const App: React.FC = () => {
     if (savedPacks) {
       setOfflinePacks(JSON.parse(savedPacks));
     }
-
-    // Load Voice Preference
     const savedVoice = localStorage.getItem('voiceType');
     if (savedVoice === 'male' || savedVoice === 'female') {
         setVoiceType(savedVoice);
+    }
+    
+    // Load Noise Mode Preference
+    const savedNoiseMode = localStorage.getItem('isNoiseMode');
+    if (savedNoiseMode) {
+        setIsNoiseMode(JSON.parse(savedNoiseMode));
+    }
+
+    const loadedSessions = localStorage.getItem('archivedSessions');
+    if (loadedSessions) {
+        setSavedSessions(JSON.parse(loadedSessions));
     }
 
     return () => {
@@ -264,19 +246,45 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // Screen Wake Lock
+  useEffect(() => {
+    let wakeLock: any = null;
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator && isConnected) {
+        try {
+          wakeLock = await (navigator as any).wakeLock.request('screen');
+        } catch (err) {
+          console.log('Wake Lock Error:', err);
+        }
+      }
+    };
+    if (isConnected) requestWakeLock();
+    return () => {
+      if (wakeLock) wakeLock.release();
+    };
+  }, [isConnected]);
+
   const isOfflineActive = !isOnline || forceOfflineMode;
 
-  // Haptic Feedback Helper
   const triggerHaptic = () => {
-      if (navigator.vibrate) {
-          navigator.vibrate(50);
-      }
+      if (navigator.vibrate) navigator.vibrate(50);
   };
 
-  // 2. Audio Processing
   const processAudioInput = useCallback((inputData: Float32Array) => {
-    if (!sessionPromiseRef.current || !isTransmittingRef.current) return;
+    // MODIFIED: Gate audio transmission based on Noise Mode Logic
+    // If Noise Mode is ON, we only transmit if `isHoldingMic` is true.
+    // If Noise Mode is OFF, we transmit if `isTransmittingRef.current` is true (continuous).
     
+    // We use a ref for 'isHolding' to avoid closure staleness if needed, but here simple logic suffices as long as state updates correctly
+    // or we can pass the holding state via ref if this callback is memoized without dependency.
+    // However, since we access state inside, we need to be careful. 
+    // Best practice: rely on ref for the "transmission gate".
+    
+    if (!sessionPromiseRef.current) return;
+    
+    // NOTE: We update `isTransmittingRef` in the touch handlers for Noise Mode to ensure sync.
+    if (!isTransmittingRef.current) return; 
+
     const pcmData = float32To16BitPCM(inputData);
     const base64Data = arrayBufferToBase64(pcmData);
 
@@ -288,12 +296,12 @@ const App: React.FC = () => {
         },
       });
     });
-  }, []);
+  }, []); // Empty dependency array means it uses initial state closures unless refs are used.
 
-  // 3. Stop Connection
   const stopConnection = useCallback(() => {
     setIsConnecting(false);
     setIsConnected(false);
+    setIsListenModeActive(false); 
     isTransmittingRef.current = false;
     triggerHaptic();
     
@@ -303,12 +311,10 @@ const App: React.FC = () => {
         mediaStreamRef.current.getTracks().forEach(track => track.stop());
         mediaStreamRef.current = null;
     }
-    
     if (scriptProcessorRef.current) {
         scriptProcessorRef.current.disconnect();
         scriptProcessorRef.current = null;
     }
-
     if (inputAudioContextRef.current) {
         inputAudioContextRef.current.close();
         inputAudioContextRef.current = null;
@@ -317,225 +323,328 @@ const App: React.FC = () => {
         outputAudioContextRef.current.close();
         outputAudioContextRef.current = null;
     }
-    
     if (activeSessionRef.current) {
         activeSessionRef.current.close();
         activeSessionRef.current = null;
     }
     sessionPromiseRef.current = null;
-    
     if (recognitionRef.current) {
         recognitionRef.current.stop();
     }
   }, []);
 
-  // 4. Toggle Handler (Mic)
-  const handleMicToggle = async () => {
-    triggerHaptic();
-    if (isConnecting) return;
-
-    if (isConnected) {
-      stopConnection();
-      return;
-    }
-
-    setIsConnecting(true);
-    setError(null);
-
-    // --- Offline Mode ---
-    if (isOfflineActive) {
-      setTimeout(() => {
-        setIsConnected(true);
-        isTransmittingRef.current = true;
-        setIsConnecting(false);
-        startOfflineRecognition();
-      }, 300);
-      return;
-    }
-
-    // --- Online Mode ---
-    if (!aiClientRef.current) {
-       setError("API Anahtarı eksik.");
-       setIsConnecting(false);
-       return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        sampleRate: INPUT_SAMPLE_RATE,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      }});
-      mediaStreamRef.current = stream;
-
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ 
-        sampleRate: INPUT_SAMPLE_RATE 
-      });
-      inputAudioContextRef.current = audioCtx;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      inputAnalyserRef.current = analyser;
-
-      const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
-      scriptProcessorRef.current = scriptProcessor;
-
-      scriptProcessor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0);
-        processAudioInput(inputData);
-      };
-
-      source.connect(analyser);
-      analyser.connect(scriptProcessor);
-      scriptProcessor.connect(audioCtx.destination);
-
-      const outCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ 
-        sampleRate: OUTPUT_SAMPLE_RATE 
-      });
-      outputAudioContextRef.current = outCtx;
-      const outAnalyser = outCtx.createAnalyser();
-      outAnalyser.fftSize = 256;
-      outputAnalyserRef.current = outAnalyser;
-      outAnalyser.connect(outCtx.destination);
-
-      const sourceDetails = getLangDetails(sourceLang);
-      const targetDetails = getLangDetails(targetLang);
-
-      // UPDATED BIDIRECTIONAL SYSTEM PROMPT
-      const systemPrompt = `You are a professional bidirectional interpreter.
-Languages: ${sourceDetails.name} <-> ${targetDetails.name}.
-
-CORE FUNCTION:
-1. Listen to the input audio.
-2. Detect the language automatically.
-3. Translate immediately to the OTHER language.
-
-STRICT PROTOCOL (DO NOT VIOLATE):
-- IF Input is ${sourceDetails.name} -> Speak ONLY ${targetDetails.name}.
-- IF Input is ${targetDetails.name} -> Speak ONLY ${sourceDetails.name}.
-- NEVER repeat the input content in the same language.
-- NEVER respond to the user (do not say "Okay", "Understood"). Just translate.
-- Do not translate silence or background noise.
-- Maintain the original tone and brevity.
-
-TIMING & PAUSES (CRITICAL):
-- The speaker may pause for 1-2 seconds to breathe or think.
-- DO NOT translate immediately upon silence if the sentence is grammatically incomplete.
-- WAIT for the thought to be finished (semantic completeness).
-- Prioritize accuracy and full sentences over extreme speed.`;
-
-      // Select Voice
-      const voiceName = voiceType === 'female' ? 'Kore' : 'Fenrir';
-
-      const connectPromise = aiClientRef.current.live.connect({
-        model: MODEL_NAME,
-        config: {
-          systemInstruction: systemPrompt,
-          responseModalities: [Modality.AUDIO],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          speechConfig: {
-            voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: voiceName }
+  const startLiveSession = async (mode: 'bidirectional' | 'listen') => {
+      triggerHaptic();
+      
+      // If using toggle mode (NOT noise mode), clicking again stops it.
+      // If using noise mode (Push-to-Talk), clicking (touch start) starts it, releasing stops transmission but keeps connection?
+      // Actually, standard PTT keeps connection open but gates audio.
+      // But we need to INITIALIZE the connection first. 
+      // Let's assume standard behavior: Button initializes connection. 
+      
+      if (isConnecting) return;
+      if (isConnected) {
+         if (!isNoiseMode) {
+             // Standard Toggle Behavior: Click to stop
+            if (isListenModeActive) {
+                if (messages.length > 0) {
+                    isTransmittingRef.current = false;
+                    setShowSaveModal(true);
+                } else {
+                    stopConnection();
+                }
+            } else {
+                stopConnection();
             }
-          }
-        },
-        callbacks: {
-          onopen: () => {
-            console.log("Connected");
-            setIsConnecting(false);
+         }
+         // In Noise Mode, clicking the button while connected is handled by TouchStart/End to gate audio
+         return;
+      }
+
+      setIsConnecting(true);
+      setError(null);
+      
+      const isListen = mode === 'listen';
+      if (isListen) {
+          setViewMode('listen');
+          setIsListenModeActive(true);
+          setMessages([]); 
+      }
+
+      if (isOfflineActive) {
+          setTimeout(() => {
             setIsConnected(true);
             isTransmittingRef.current = true;
-            nextStartTimeRef.current = 0;
-            setRealtimeInput('');
-            setRealtimeOutput('');
-          },
-          onmessage: (msg: LiveServerMessage) => handleServerMessage(msg),
-          onclose: () => {
-            console.log("Closed");
-            stopConnection();
-          },
-          onerror: (e) => {
-            console.error(e);
-            setError("Bağlantı hatası.");
-            stopConnection();
-          }
-        }
-      });
-      
-      sessionPromiseRef.current = connectPromise;
-      connectPromise.then(session => {
-          activeSessionRef.current = session;
-      });
+            setIsConnecting(false);
+            startOfflineRecognition();
+          }, 300);
+          return;
+      }
 
-    } catch (e: any) {
-      console.error(e);
-      setError(`Hata: ${e.message}`);
-      stopConnection();
-    }
+      if (!aiClientRef.current) {
+          setError("API Anahtarı eksik.");
+          setIsConnecting(false);
+          setIsListenModeActive(false);
+          return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+          sampleRate: INPUT_SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true, // Crucial for noisy environments
+          autoGainControl: true
+        }});
+        mediaStreamRef.current = stream;
+
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: INPUT_SAMPLE_RATE });
+        inputAudioContextRef.current = audioCtx;
+        const source = audioCtx.createMediaStreamSource(stream);
+        
+        // --- AUDIO GRAPH SETUP ---
+        // Source -> [Filter?] -> Analyser -> ScriptProcessor -> Dest
+        
+        let nodeToConnectToAnalyser = source;
+
+        // Apply High-Pass Filter if in Noise Mode to cut rumble/wind/traffic
+        if (isNoiseMode) {
+            const highPassFilter = audioCtx.createBiquadFilter();
+            highPassFilter.type = 'highpass';
+            highPassFilter.frequency.value = 100; // Cut off frequencies below 100Hz (rumble)
+            highPassFilter.Q.value = 0.5;
+            source.connect(highPassFilter);
+            nodeToConnectToAnalyser = highPassFilter as any;
+        }
+
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        inputAnalyserRef.current = analyser;
+        
+        const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+        scriptProcessorRef.current = scriptProcessor;
+        scriptProcessor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0);
+          processAudioInput(inputData);
+        };
+
+        nodeToConnectToAnalyser.connect(analyser);
+        analyser.connect(scriptProcessor);
+        scriptProcessor.connect(audioCtx.destination);
+
+        const outCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: OUTPUT_SAMPLE_RATE });
+        outputAudioContextRef.current = outCtx;
+        const outAnalyser = outCtx.createAnalyser();
+        outAnalyser.fftSize = 256;
+        outputAnalyserRef.current = outAnalyser;
+        outAnalyser.connect(outCtx.destination);
+
+        const sourceDetails = getLangDetails(sourceLang);
+        const targetDetails = getLangDetails(targetLang);
+        const voiceName = voiceType === 'female' ? 'Kore' : 'Fenrir';
+
+        let systemPrompt = "";
+        const modalities: Modality[] = [Modality.AUDIO]; 
+
+        if (isListen) {
+            systemPrompt = `You are a professional simultaneous interpreter.
+Source Language: ${targetDetails.name}
+Target Language: ${sourceDetails.name} (Turkish)
+TASK: Translate the dominant speaker's speech into Turkish IMMEDIATELY.
+CRITICAL PROTOCOLS:
+1. **FOCUS ON DOMINANT VOICE:** Ignore background noise.
+2. **STREAMING OUTPUT:** Translate phrase-by-phrase.
+3. **PUNCTUATION:** Use correct punctuation (., ?, !) to clearly mark the end of segments.`;
+        } else {
+            systemPrompt = `You are a professional bidirectional interpreter.
+Languages: ${sourceDetails.name} <-> ${targetDetails.name}.
+CORE FUNCTION: Listen, detect language, translate to the OTHER language.
+Focus on the dominant voice. Ignore background noise.`;
+        }
+
+        const connectPromise = aiClientRef.current.live.connect({
+          model: MODEL_NAME,
+          config: {
+            systemInstruction: systemPrompt,
+            responseModalities: modalities, 
+            inputAudioTranscription: {},
+            outputAudioTranscription: {}, 
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } }
+            }
+          },
+          callbacks: {
+            onopen: () => {
+              console.log("Connected");
+              setIsConnecting(false);
+              setIsConnected(true);
+              
+              // In Noise Mode, we start CONNECTED but NOT TRANSMITTING until button press
+              isTransmittingRef.current = isNoiseMode ? false : true; 
+              
+              nextStartTimeRef.current = 0;
+              setRealtimeInput('');
+              setRealtimeOutput('');
+            },
+            onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
+            onclose: () => {
+              console.log("Closed");
+              stopConnection();
+            },
+            onerror: (e) => {
+              console.error(e);
+              setError("Bağlantı hatası.");
+              stopConnection();
+            }
+          }
+        });
+        
+        sessionPromiseRef.current = connectPromise;
+        connectPromise.then(session => {
+            activeSessionRef.current = session;
+        });
+
+      } catch (e: any) {
+        console.error(e);
+        setError(`Hata: ${e.message}`);
+        stopConnection();
+      }
   };
 
-  const handleServerMessage = (msg: LiveServerMessage) => {
+  // --- NOISE MODE HANDLERS (Push-to-Talk) ---
+  const handlePTTStart = (mode: 'bidirectional' | 'listen') => {
+      // If not connected, start connection
+      if (!isConnected) {
+          startLiveSession(mode);
+          // We set holding true immediately so when connection opens, we can set transmitting true if logic allows
+          setIsHoldingMic(true);
+          // Wait for connection... transmission will be handled in onOpen or separate effect if we want immediate
+          // For simplicity: In NoiseMode, connection stays open. User just gates audio.
+      } else {
+          // Already connected, just open the gate
+          setIsHoldingMic(true);
+          isTransmittingRef.current = true;
+          triggerHaptic();
+      }
+  };
+
+  const handlePTTEnd = () => {
+      setIsHoldingMic(false);
+      if (isConnected) {
+          isTransmittingRef.current = false;
+          // triggerHaptic(); // Optional feedback on release
+      }
+  };
+
+  const handleMicToggle = () => {
+      if (isNoiseMode) return; // Handled by TouchStart/End
+      startLiveSession('bidirectional');
+  };
+  
+  const handleListenToggle = () => {
+      if (isNoiseMode) return; // Handled by TouchStart/End
+      startLiveSession('listen');
+  };
+
+  // ... (Save/Discard/ServerMessage/Language/Voice handlers remain same)
+  const saveSession = () => {
+      const newSession: ArchivedSession = {
+          id: Date.now().toString(),
+          date: new Date().toISOString(),
+          targetLang: targetLang,
+          preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : "Boş Oturum",
+          messages: [...messages]
+      };
+      const updatedSessions = [newSession, ...savedSessions];
+      setSavedSessions(updatedSessions);
+      localStorage.setItem('archivedSessions', JSON.stringify(updatedSessions));
+      setMessages([]);
+      setShowSaveModal(false);
+      stopConnection();
+  };
+
+  const discardSession = () => {
+      setMessages([]);
+      setShowSaveModal(false);
+      stopConnection();
+  };
+
+  const handleServerMessage = (msg: LiveServerMessage, isListen: boolean) => {
+    // 1. Input Transcription (User/Speaker)
     if (msg.serverContent?.inputTranscription) {
        currentInputTranscription.current += msg.serverContent.inputTranscription.text;
        setRealtimeInput(currentInputTranscription.current);
     }
+
+    // 2. Output Transcription (Model/Translation)
     if (msg.serverContent?.outputTranscription) {
-       currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
-       setRealtimeOutput(currentOutputTranscription.current);
+        currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
+        
+        if (isListen) {
+          // --- LISTEN MODE: STREAM-TO-HISTORY LOGIC ---
+          const rawText = currentOutputTranscription.current;
+          const splitMatch = rawText.match(/([.?!])\s+/);
+
+          if (splitMatch && splitMatch.index !== undefined) {
+             const splitIndex = splitMatch.index + 1; // Include the punctuation
+             const sentence = rawText.substring(0, splitIndex).trim();
+             const remainder = rawText.substring(splitIndex).trim(); 
+
+             if (sentence.length > 0) {
+                 addMessage('model', sentence, sourceLang); // Flush to list
+                 currentOutputTranscription.current = remainder;
+             }
+          }
+          setRealtimeOutput(currentOutputTranscription.current);
+
+        } else {
+          // Normal mode
+          setRealtimeOutput(currentOutputTranscription.current);
+        }
     }
+
+    // 3. Audio Output Handling
+    const audioData = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    if (audioData && !isListen) {
+        playAudioResponse(audioData);
+    }
+
+    // 4. Turn Complete
     if (msg.serverContent?.turnComplete) {
        const inputTx = currentInputTranscription.current.trim();
        const outputTx = currentOutputTranscription.current.trim();
        
        if (inputTx || outputTx) {
-         // Auto-detect input language to correctly assign 'User' and 'Model' roles relative to the languages
-         // If input detected as Target, then User spoke Target -> Model spoke Source.
-         // If input detected as Source, then User spoke Source -> Model spoke Target.
-         
-         const detectedInputLang = detectLanguage(inputTx, sourceLang, targetLang);
-         const detectedOutputLang = detectedInputLang === sourceLang ? targetLang : sourceLang;
-         
-         // In a pure bidirectional sense, 'User' is just the microphone input.
-         // But visually we want to attribute the languages correctly.
-         addMessage('user', inputTx || '...', detectedInputLang);
-         addMessage('model', outputTx || '...', detectedOutputLang);
+         if (isListen) {
+             if (outputTx) {
+                 addMessage('model', outputTx, sourceLang); 
+             }
+             setRealtimeInput(''); 
+         } else {
+             const detectedInputLang = detectLanguage(inputTx, sourceLang, targetLang);
+             const detectedOutputLang = detectedInputLang === sourceLang ? targetLang : sourceLang;
+             addMessage('user', inputTx || '...', detectedInputLang);
+             addMessage('model', outputTx || '...', detectedOutputLang);
+         }
        }
        
        currentInputTranscription.current = '';
        currentOutputTranscription.current = '';
-       setRealtimeInput('');
        setRealtimeOutput('');
-    }
-    const audioData = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-    if (audioData) {
-       playAudioResponse(audioData);
+       
+       if (!isListen) setRealtimeInput('');
     }
   };
 
-  // 5. Language Change Logic
   const handleLanguageSelect = (newLang: TargetLanguage) => {
-      // Prevent selecting same language for source and target
       if (selectorType === 'source') {
-          if (newLang === targetLang) {
-             // Swap if same
-             setTargetLang(sourceLang);
-          }
+          if (newLang === targetLang) setTargetLang(sourceLang);
           setSourceLang(newLang);
       } else if (selectorType === 'target') {
-          if (newLang === sourceLang) {
-             // Swap if same
-             setSourceLang(targetLang);
-          }
+          if (newLang === sourceLang) setSourceLang(targetLang);
           setTargetLang(newLang);
       }
-
       setSelectorType(null);
-
-      // Reconnect if online to update system prompt
       if (isConnected && !isOfflineActive) {
           shouldReconnectRef.current = true;
           stopConnection();
@@ -545,37 +654,41 @@ TIMING & PAUSES (CRITICAL):
   const handleVoiceChange = (type: 'female' | 'male') => {
       setVoiceType(type);
       localStorage.setItem('voiceType', type);
-      
-      // If connected online, reconnect to apply new voice
       if (isConnected && !isOfflineActive) {
           shouldReconnectRef.current = true;
           stopConnection();
       }
   };
 
+  const toggleNoiseMode = () => {
+      const newValue = !isNoiseMode;
+      setIsNoiseMode(newValue);
+      localStorage.setItem('isNoiseMode', JSON.stringify(newValue));
+      if (isConnected) {
+          stopConnection(); // Need to restart to apply audio graph changes
+      }
+  };
+
   useEffect(() => {
       if (shouldReconnectRef.current) {
           shouldReconnectRef.current = false;
-          handleMicToggle();
+          handleMicToggle(); // Defaults to bidirectional reconnect logic
       }
-  }, [sourceLang, targetLang, voiceType]); // Added voiceType to dependency but handled via shouldReconnect
+  }, [sourceLang, targetLang, voiceType]);
 
-  // Offline Direction Toggle
   const toggleOfflineDirection = () => {
-    if (!isOfflineActive) return; // Only relevant for offline
+    if (!isOfflineActive) return;
     if (isConnected) {
         stopConnection();
-        // Give a small delay to reset before restarting
         setTimeout(() => {
            setIsOfflineReverse(!isOfflineReverse);
-           handleMicToggle(); // Restart immediately
+           handleMicToggle();
         }, 200);
     } else {
         setIsOfflineReverse(!isOfflineReverse);
     }
   };
 
-  // 6. Offline Logic
   const startOfflineRecognition = () => {
     if (!('webkitSpeechRecognition' in window)) {
         setError("Tarayıcınız ses tanımayı desteklemiyor.");
@@ -584,23 +697,13 @@ TIMING & PAUSES (CRITICAL):
     try {
       const Recognition = (window as any).webkitSpeechRecognition;
       const recognition = new Recognition();
-      
       const sourceDetails = getLangDetails(sourceLang);
       const targetDetails = getLangDetails(targetLang);
-      
-      // Determine language based on direction
-      // isOfflineReverse FALSE -> Speaking Source
-      // isOfflineReverse TRUE -> Speaking Target
       const activeLocale = isOfflineReverse ? targetDetails.locale : sourceDetails.locale;
-      
       recognition.lang = activeLocale;
       recognition.continuous = true; 
       recognition.interimResults = true; 
-
-      recognition.onstart = () => {
-          setRealtimeInput('');
-      };
-      
+      recognition.onstart = () => setRealtimeInput('');
       recognition.onresult = (event: any) => {
         let interim = '';
         let final = '';
@@ -617,53 +720,11 @@ TIMING & PAUSES (CRITICAL):
   };
 
   const stopOfflineRecognition = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      setTimeout(() => {
-        const text = realtimeInput.trim();
-        if (text) {
-           const inputLang = isOfflineReverse ? targetLang : sourceLang;
-           addMessage('user', text, inputLang);
-           setRealtimeInput('');
-           
-           // Mock Translation Logic
-           setTimeout(() => {
-             const sourceDetails = getLangDetails(sourceLang);
-             const targetDetails = getLangDetails(targetLang);
-             
-             let mockTranslation = "";
-             let outputLang = targetLang;
-             
-             if (isOfflineReverse) {
-                 // Target -> Source
-                 outputLang = sourceLang;
-                 mockTranslation = `(${sourceDetails.short} Çevirisi) ${text}`; 
-                 speakOffline(text, sourceDetails.locale); 
-             } else {
-                 // Source -> Target
-                 outputLang = targetLang;
-                 mockTranslation = `(${targetDetails.short} Çevirisi) ${text}`;
-                 speakOffline(text, targetDetails.locale); 
-             }
-             
-             addMessage('model', mockTranslation, outputLang);
-           }, 500);
-        }
-      }, 500);
-    }
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
   };
 
-  const speakOffline = (text: string, locale: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text); 
-      utterance.lang = locale;
-      // Note: Offline mode uses system voice default for locale.
-      // Implementing gender specific voice selection for offline is browser dependent and unreliable.
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  // 7. Play Audio
   const playAudioResponse = async (base64Audio: string) => {
     if (!outputAudioContextRef.current || !outputAnalyserRef.current) return;
     const ctx = outputAudioContextRef.current;
@@ -682,6 +743,14 @@ TIMING & PAUSES (CRITICAL):
     } catch (err) {}
   };
 
+  const speakOffline = (text: string, locale: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text); 
+      utterance.lang = locale;
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
   const addMessage = (role: 'user' | 'model', text: string, langCode?: TargetLanguage) => {
     setMessages(prev => [...prev, { 
       id: Date.now().toString() + Math.random(), 
@@ -693,11 +762,25 @@ TIMING & PAUSES (CRITICAL):
     }]);
   };
 
+  // --- SMART SCROLL HANDLING ---
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  
+  const handleScroll = () => {
+      if (!chatContainerRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+      isUserScrolledUpRef.current = !isAtBottom;
+  };
+
   useEffect(() => {
-    if (chatContainerRef.current) chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (chatContainerRef.current) {
+        if (!isUserScrolledUpRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }
   }, [messages, realtimeInput, realtimeOutput, viewMode]);
 
+  // ... (downloadPack & deletePack functions remain same)
   const downloadPack = (id: string) => {
     setOfflinePacks(prev => prev.map(p => p.id === id ? { ...p, progress: 5 } : p));
     let progress = 5;
@@ -724,64 +807,80 @@ TIMING & PAUSES (CRITICAL):
      });
   };
 
-  // Get Last Valid Messages for Split View
   const lastUserMsg = messages.slice().reverse().find(m => m.role === 'user');
   const lastModelMsg = messages.slice().reverse().find(m => m.role === 'model');
 
   const sourceDetails = getLangDetails(sourceLang);
   const targetDetails = getLangDetails(targetLang);
 
-  // Logic to determine which Realtime Input belongs to which box in Split View
-  // If realtimeInput looks like Target Lang, it goes to Top Box (Target).
-  // If realtimeInput looks like Source Lang, it goes to Bottom Box (Source).
   const detectedRealtimeInputLang = detectLanguage(realtimeInput, sourceLang, targetLang);
   const isInputTarget = detectedRealtimeInputLang === targetLang;
 
+  const deleteArchivedSession = (id: string) => {
+      const updated = savedSessions.filter(s => s.id !== id);
+      setSavedSessions(updated);
+      localStorage.setItem('archivedSessions', JSON.stringify(updated));
+      if (openedArchive?.id === id) setOpenedArchive(null);
+  };
+
   return (
-    <div className="h-[100dvh] w-full bg-slate-950 text-slate-100 flex flex-col font-sans relative overflow-hidden select-none">
+    <div className={`h-[100dvh] w-full flex flex-col font-sans relative overflow-hidden select-none transition-colors duration-500 ${isListenModeActive ? 'bg-orange-950 text-orange-50' : 'bg-slate-950 text-slate-100'}`}>
       
       {/* Dynamic Background */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className={`absolute top-[-10%] left-[-20%] w-[150vw] h-[60vh] rounded-full blur-[80px] opacity-20 transition-colors duration-1000 ${isOfflineActive ? 'bg-orange-600' : isConnected ? 'bg-emerald-900' : 'bg-blue-900'}`}></div>
+        <div className={`absolute top-[-10%] left-[-20%] w-[150vw] h-[60vh] rounded-full blur-[80px] opacity-20 transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-600' : isOfflineActive ? 'bg-red-600' : isConnected ? 'bg-emerald-900' : 'bg-blue-900'}`}></div>
         <div className="absolute bottom-[-10%] right-[-20%] w-[150vw] h-[50vh] bg-purple-900/10 rounded-full blur-[100px]"></div>
       </div>
 
-      {/* Mobile Header (Safe Area Top) */}
-      <header className="z-20 h-16 flex items-center justify-between px-5 bg-gradient-to-b from-slate-950/80 to-transparent backdrop-blur-sm sticky top-0 pt-[env(safe-area-inset-top)]">
+      {/* Header */}
+      <header className="z-20 h-16 flex items-center justify-between px-5 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm sticky top-0 pt-[env(safe-area-inset-top)]">
         <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg ${isOfflineActive ? 'from-orange-500 to-red-600' : 'from-emerald-500 to-teal-600'}`}>
-            <Sparkles size={16} className="text-white" />
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg transition-colors duration-500 ${isListenModeActive ? 'from-orange-500 to-amber-600' : isOfflineActive ? 'from-orange-500 to-red-600' : 'from-emerald-500 to-teal-600'}`}>
+            {isListenModeActive ? <Ear size={16} className="text-white" /> : <Sparkles size={16} className="text-white" />}
           </div>
           <div className="flex flex-col">
-              <span className="font-bold text-lg tracking-tight leading-none">Hizmet Dili</span>
-              <span className="text-[9px] text-slate-400 font-medium tracking-wide mt-0.5">Developer by Ali Tellioğlu</span>
+              <span className={`font-bold text-lg tracking-tight leading-none ${isListenModeActive ? 'text-orange-100' : ''}`}>
+                 {viewMode === 'archive' ? 'Arşiv' : isListenModeActive ? 'Dinleme Modu' : 'Hizmet Dili'}
+              </span>
+              <span className={`text-[9px] font-medium tracking-wide mt-0.5 ${isListenModeActive ? 'text-orange-300' : 'text-slate-400'}`}>
+                 {viewMode === 'archive' ? 'Kayıtlı Oturumlar' : isListenModeActive ? `${targetDetails.name} Dinleniyor...` : isNoiseMode ? 'Bas-Konuş Modu Aktif' : 'Developer by Ali Tellioğlu'}
+              </span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-           {/* View Mode Toggle */}
-           <button 
-             onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')}
-             className={`p-2 rounded-full transition-colors active:scale-95 ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'}`}
-           >
-             {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
-           </button>
+           {!isListenModeActive && viewMode !== 'archive' && (
+             <button 
+               onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')}
+               className={`p-2 rounded-full transition-colors active:scale-95 ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'}`}
+             >
+               {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
+             </button>
+           )}
 
-           <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${isOfflineActive ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
-            {isOfflineActive ? 'OFFLINE' : 'ONLINE'}
-           </div>
-           
-          <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800/50 hover:bg-slate-800 transition-colors active:scale-95">
-            <Settings size={20} className="text-slate-400" />
-          </button>
+           {viewMode === 'archive' ? (
+                <button onClick={() => setViewMode('chat')} className="p-2 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700">
+                    <X size={20} />
+                </button>
+           ) : (
+             <>
+               <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${isListenModeActive ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : isOfflineActive ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
+                {isOfflineActive ? 'OFFLINE' : 'ONLINE'}
+               </div>
+               
+               <button onClick={() => setShowSettings(true)} className={`p-2 rounded-full transition-colors active:scale-95 ${isListenModeActive ? 'bg-orange-800/50 hover:bg-orange-800 text-orange-300' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'}`}>
+                <Settings size={20} />
+              </button>
+             </>
+           )}
         </div>
       </header>
       
       {/* Direction Indicator (Only in Chat Mode) */}
-      {viewMode === 'chat' && (
+      {viewMode === 'chat' && !isListenModeActive && (
       <div className="absolute top-16 left-0 right-0 z-10 flex justify-center mt-2 animate-fade-in-down pointer-events-auto">
           <button 
              onClick={toggleOfflineDirection}
-             disabled={!isOfflineActive} // Only interactive in offline mode
+             disabled={!isOfflineActive} 
              className={`bg-slate-800/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-700 flex items-center gap-3 text-xs font-medium text-slate-300 shadow-xl transition-all active:scale-95 ${isOfflineActive ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'}`}
           >
               <div className="flex items-center gap-1.5">
@@ -797,13 +896,125 @@ TIMING & PAUSES (CRITICAL):
       </div>
       )}
 
-      {/* Main Area */}
+      {/* Main Content Area */}
       <main className="flex-1 flex flex-col z-10 relative overflow-hidden">
         
-        {/* --- VIEW MODE: SPLIT (FACE-TO-FACE) --- */}
-        {viewMode === 'split' ? (
+        {/* --- VIEW MODE: LISTEN (TRANSCRIPTION FEED) --- */}
+        {viewMode === 'listen' ? (
+            <div 
+               ref={chatContainerRef} 
+               onScroll={handleScroll}
+               className="flex-1 overflow-y-auto px-6 pt-10 pb-20 scroll-smooth no-scrollbar"
+            >
+                {/* Realtime Input (Original Language Preview) */}
+                {realtimeInput && (
+                    <div className="mb-8 opacity-50 transition-opacity">
+                        <span className="text-xs text-orange-300/70 font-bold uppercase tracking-widest mb-2 block flex items-center gap-2">
+                             <Ear size={12} className="animate-pulse"/> Algılanıyor ({targetDetails.short})
+                        </span>
+                        <p className="text-2xl text-orange-100/50 font-light leading-relaxed italic">
+                            {realtimeInput}...
+                        </p>
+                    </div>
+                )}
+
+                {/* Transcriptions */}
+                {messages.filter(m => m.role === 'model').map((msg) => (
+                    <div key={msg.id} className="mb-8 animate-fade-in-up">
+                        <span className="text-xs text-orange-400 font-bold uppercase tracking-widest mb-1 block flex items-center gap-2">
+                             {sourceDetails.flag} Çeviri
+                        </span>
+                        <p className="text-2xl md:text-3xl font-medium text-white leading-relaxed drop-shadow-sm">
+                            {msg.text}
+                        </p>
+                    </div>
+                ))}
+                
+                 {/* Realtime Output (Draft Translation) */}
+                 {realtimeOutput && (
+                    <div className="mb-4">
+                        <p className="text-2xl md:text-3xl font-medium text-orange-200 leading-relaxed blur-[1px]">
+                            {realtimeOutput}
+                        </p>
+                    </div>
+                 )}
+
+                <div className="h-32"></div> {/* Spacer */}
+            </div>
+        ) : viewMode === 'archive' ? (
+            /* --- VIEW MODE: ARCHIVE --- */
+            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">
+                {openedArchive ? (
+                     <div className="space-y-4 animate-fade-in">
+                        <button onClick={() => setOpenedArchive(null)} className="flex items-center gap-2 text-slate-400 text-sm mb-4">
+                            <ChevronRight className="rotate-180" size={16} /> Geri Dön
+                        </button>
+                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                                        <Calendar size={16} className="text-blue-400" />
+                                        {new Date(openedArchive.date).toLocaleString('tr-TR')}
+                                    </h3>
+                                    <span className="text-slate-500 text-xs mt-1 block">
+                                        Hedef Dil: {getLangDetails(openedArchive.targetLang).name} {getLangDetails(openedArchive.targetLang).flag}
+                                    </span>
+                                </div>
+                                <button onClick={() => deleteArchivedSession(openedArchive.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg">
+                                    <Trash2 size={16} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="space-y-6">
+                            {openedArchive.messages.map((msg, i) => (
+                                <div key={i} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                                    <p className="text-lg text-slate-200 leading-relaxed">{msg.text}</p>
+                                </div>
+                            ))}
+                        </div>
+                     </div>
+                ) : (
+                    <div className="space-y-3">
+                        {savedSessions.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-64 text-slate-500 opacity-50">
+                                <FolderOpen size={48} />
+                                <p className="mt-4 text-sm">Henüz kaydedilmiş bir oturum yok.</p>
+                            </div>
+                        ) : (
+                            savedSessions.map(session => (
+                                <button 
+                                   key={session.id} 
+                                   onClick={() => setOpenedArchive(session)}
+                                   className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-colors group"
+                                >
+                                    <div className="flex items-start gap-3 text-left">
+                                        <div className="p-3 bg-blue-600/20 text-blue-400 rounded-lg">
+                                            <FileText size={20} />
+                                        </div>
+                                        <div>
+                                            <div className="font-semibold text-slate-200 text-sm">
+                                                {new Date(session.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute:'2-digit' })}
+                                            </div>
+                                            <div className="text-xs text-slate-500 mt-1 line-clamp-1">
+                                                {session.preview}
+                                            </div>
+                                            <div className="mt-1.5 flex gap-2">
+                                                <span className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
+                                                    {getLangDetails(session.targetLang).short}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="text-slate-600 group-hover:text-white transition-colors" size={20} />
+                                </button>
+                            ))
+                        )}
+                    </div>
+                )}
+            </div>
+        ) : viewMode === 'split' ? (
+             /* --- VIEW MODE: SPLIT --- */
              <div className="flex-1 flex flex-col items-stretch h-full pb-[calc(8rem+env(safe-area-inset-bottom))]">
-                {/* Top Half (Target Language - Rotated 180deg) */}
                 <div className="flex-1 bg-slate-900/50 border-b border-slate-800 p-6 flex flex-col justify-center items-center relative rotate-180">
                      <div className="absolute top-4 left-4 flex items-center gap-2 opacity-50">
                         <span className="text-2xl">{targetDetails.flag}</span>
@@ -811,13 +1022,10 @@ TIMING & PAUSES (CRITICAL):
                      </div>
                      <div className="text-center">
                          <div className="text-3xl font-bold text-emerald-300 leading-snug">
-                            {/* IF User speaks Target (Dutch) -> Show Input Here. ELSE Show Translation (Output) */}
                             {isInputTarget ? realtimeInput : (realtimeOutput || lastModelMsg?.text || "...")}
                          </div>
                      </div>
                 </div>
-
-                {/* Bottom Half (Source Language) */}
                 <div className="flex-1 bg-slate-950/50 p-6 flex flex-col justify-center items-center relative">
                      <div className="absolute top-4 left-4 flex items-center gap-2 opacity-50">
                         <span className="text-2xl">{sourceDetails.flag}</span>
@@ -825,7 +1033,6 @@ TIMING & PAUSES (CRITICAL):
                      </div>
                      <div className="text-center">
                          <div className="text-3xl font-bold text-slate-100 leading-snug">
-                            {/* IF User speaks Source (Turkish) -> Show Input Here. ELSE Show Translation (Output) */}
                             {!isInputTarget ? realtimeInput : (realtimeOutput || lastUserMsg?.text || "...")}
                          </div>
                      </div>
@@ -833,7 +1040,7 @@ TIMING & PAUSES (CRITICAL):
              </div>
         ) : (
         /* --- VIEW MODE: CHAT (STANDARD) --- */
-        <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 pt-10 pb-6 space-y-6 scroll-smooth no-scrollbar">
+        <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pt-10 pb-6 space-y-6 scroll-smooth no-scrollbar">
           {error && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-3 rounded-xl text-sm flex justify-between items-center mx-2">
               <span>{error}</span>
@@ -845,11 +1052,7 @@ TIMING & PAUSES (CRITICAL):
              <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-40 space-y-4">
                 <Globe size={64} strokeWidth={1} />
                 <p className="text-center text-sm px-10">
-                  {isOfflineActive && isOfflineReverse 
-                     ? `${targetDetails.name} konuşmak için mikrofona dokunun.`
-                     : isOfflineActive 
-                       ? `${sourceDetails.name} konuşmak için mikrofona dokunun.`
-                       : "Konuşmaya başlamak için aşağıdaki mikrofona dokunun."}
+                   {isNoiseMode ? 'Bas-konuş modu aktif. Konuşmak için butona basılı tutun.' : 'Konuşmaya başlamak için mikrofonu kullanın.'}
                 </p>
              </div>
           )}
@@ -864,14 +1067,11 @@ TIMING & PAUSES (CRITICAL):
             >
               <span className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1.5">
                   {msg.role === 'user' ? (
-                      <>
-                        <Mic size={10} />
-                        <span>Konuşmacı</span>
-                      </>
+                      <> <Mic size={10} /> <span>Konuşmacı</span> </>
                   ) : (
-                      <>
-                        <Sparkles size={10} />
-                        <span>Çevirmen</span>
+                      <> 
+                        {/* Use Ear icon if it was a listen mode message (implied by context usually, simplified here) */}
+                        <Sparkles size={10} /> <span>Çevirmen</span> 
                       </>
                   )}
               </span>
@@ -893,13 +1093,13 @@ TIMING & PAUSES (CRITICAL):
             </div>
           )})}
 
-          {/* Real-time Bubbles */}
+          {/* Real-time Bubbles (Chat Mode) */}
           {(realtimeInput || realtimeOutput) && (
              <div className="space-y-4">
                 {realtimeInput && (
                   <div className="flex flex-col items-start opacity-70">
                      <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse flex items-center gap-1"><Mic size={10}/> 
-                     {/* Show which language is being detected/spoken live */}
+                     {/* Heuristic display */}
                      {getLangDetails(detectedRealtimeInputLang).short}...
                      </span>
                      <div className="max-w-[85%] px-5 py-3 bg-slate-800/50 border border-slate-700 border-dashed text-slate-300 rounded-2xl rounded-tl-sm">
@@ -921,15 +1121,13 @@ TIMING & PAUSES (CRITICAL):
         )}
 
         {/* BOTTOM DOCK (Controls) */}
-        {/* pb-[calc(1.5rem+env(safe-area-inset-bottom))] ensures button is above home indicator */}
-        <div className="bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/50 px-6 pt-4 z-30 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] absolute bottom-0 w-full">
+        <div className={`backdrop-blur-xl border-t px-6 pt-4 z-30 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] absolute bottom-0 w-full transition-colors duration-500 ${isListenModeActive ? 'bg-orange-950/80 border-orange-900/50' : 'bg-slate-950/80 border-slate-800/50'}`}>
           
           {/* Visualizer Bar (Above Dock) */}
           <div className="h-10 w-full flex items-center justify-center mb-4">
             {isConnected ? (
               <div className="w-full h-full opacity-80">
-                 {/* Updated to Green color by default if online */}
-                 <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isOfflineActive ? '#f97316' : '#4ade80'} />
+                 <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isListenModeActive ? '#fb923c' : isOfflineActive ? '#f97316' : '#4ade80'} />
               </div>
             ) : (
               <div className="h-1 w-16 bg-slate-800 rounded-full"></div>
@@ -939,67 +1137,143 @@ TIMING & PAUSES (CRITICAL):
           <div className="flex items-center justify-between max-w-sm mx-auto">
             
             {/* Left: Source Language Selector */}
-            <div className="w-24 flex flex-col items-center gap-1">
+            <div className="w-20 flex flex-col items-center gap-1">
                <button 
                  onClick={() => setSelectorType('source')}
-                 className="w-full h-16 bg-slate-800 border border-slate-700 text-slate-200 rounded-2xl flex items-center justify-center hover:border-slate-500 transition-colors active:scale-95 touch-manipulation relative overflow-hidden group"
+                 // Disable source selection in Listen Mode (Always Turkish output)
+                 disabled={isListenModeActive} 
+                 className={`w-full h-14 border rounded-2xl flex items-center justify-center transition-all active:scale-95 touch-manipulation relative overflow-hidden group ${isListenModeActive ? 'bg-orange-900/40 border-orange-800/50 opacity-80' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
                >
-                  <span className="text-4xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{sourceDetails.flag}</span>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                  <span className="text-3xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{sourceDetails.flag}</span>
                </button>
-               <span className="text-[10px] text-slate-500 font-medium">Kaynak</span>
+               <span className={`text-[9px] font-medium ${isListenModeActive ? 'text-orange-400' : 'text-slate-500'}`}>Kaynak</span>
             </div>
 
-            {/* Center: Main Mic Toggle */}
-            <div className="relative -mt-8">
-              
-              {/* Green Halo Ripple Effects */}
-              {isConnected && (
-                <>
-                  <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] ${isOfflineActive ? 'bg-orange-500/40' : 'bg-green-500/40'}`}></div>
-                  <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms] ${isOfflineActive ? 'bg-orange-500/30' : 'bg-green-500/30'}`}></div>
-                   <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_500ms] ${isOfflineActive ? 'bg-orange-500/10' : 'bg-green-500/10'}`}></div>
-                </>
-              )}
-              
-              <button
-                onClick={handleMicToggle}
-                className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 touch-manipulation z-10 ${
-                  isConnecting
-                    ? 'bg-slate-800 border-4 border-slate-700 cursor-wait'
-                    : isConnected
-                      ? isOfflineActive 
-                        ? 'bg-orange-600 text-white shadow-orange-600/40 ring-4 ring-orange-900/50 scale-105' 
-                        : 'bg-green-600 text-white shadow-green-600/40 ring-4 ring-green-900/50 scale-105'
-                      : 'bg-slate-100 text-slate-900 hover:bg-white border-4 border-slate-300 shadow-white/10'
-                }`}
-              >
-                {isConnecting ? (
-                   <Loader2 size={32} className="animate-spin text-slate-400" />
-                ) : isConnected ? (
-                   <Square size={28} fill="currentColor" className="rounded-sm" />
-                ) : (
-                   <Mic size={32} strokeWidth={2.5} />
-                )}
-              </button>
+            {/* Center Controls (Two Buttons) */}
+            <div className="relative -mt-6 flex gap-4 items-end">
+                
+                {/* 1. LISTEN BUTTON (DINLE) */}
+                <div className="relative group">
+                    {/* Orange Halo for Listen Mode */}
+                    {isListenModeActive && (
+                        <>
+                          <div className="absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] bg-orange-500/50"></div>
+                          <div className="absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms] bg-orange-500/30"></div>
+                        </>
+                    )}
+                    <button
+                        // Noise Mode Handling for Listen Button
+                        onMouseDown={isNoiseMode ? () => handlePTTStart('listen') : undefined}
+                        onMouseUp={isNoiseMode ? handlePTTEnd : undefined}
+                        onTouchStart={isNoiseMode ? (e) => { e.preventDefault(); handlePTTStart('listen'); } : undefined}
+                        onTouchEnd={isNoiseMode ? (e) => { e.preventDefault(); handlePTTEnd(); } : undefined}
+                        onClick={!isNoiseMode ? handleListenToggle : undefined}
+
+                        className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 transform active:scale-95 z-10 border-2 select-none ${
+                            isListenModeActive 
+                            ? isNoiseMode && isHoldingMic 
+                                ? 'bg-orange-500 text-white border-orange-300 scale-110 shadow-[0_0_20px_rgba(251,146,60,0.6)]' // Holding visual
+                                : 'bg-orange-600 text-white border-orange-400 scale-110' 
+                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                        }`}
+                    >
+                        {isListenModeActive && isConnecting ? <Loader2 size={24} className="animate-spin" /> : <Ear size={24} />}
+                    </button>
+                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                        {isNoiseMode ? 'Bas-Tut' : 'Dinle'}
+                    </span>
+                </div>
+
+                {/* 2. MAIN CHAT BUTTON */}
+                <div className="relative group">
+                    {/* Green/Red Halo for Chat Mode */}
+                    {isConnected && !isListenModeActive && (
+                        <>
+                          <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] ${isOfflineActive ? 'bg-red-500/40' : 'bg-emerald-500/40'}`}></div>
+                          <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms] ${isOfflineActive ? 'bg-red-500/30' : 'bg-emerald-500/30'}`}></div>
+                        </>
+                    )}
+                    <button
+                        // Noise Mode Handling for Chat Button
+                        onMouseDown={isNoiseMode ? () => handlePTTStart('bidirectional') : undefined}
+                        onMouseUp={isNoiseMode ? handlePTTEnd : undefined}
+                        onTouchStart={isNoiseMode ? (e) => { e.preventDefault(); handlePTTStart('bidirectional'); } : undefined}
+                        onTouchEnd={isNoiseMode ? (e) => { e.preventDefault(); handlePTTEnd(); } : undefined}
+                        onClick={!isNoiseMode ? handleMicToggle : undefined}
+                        
+                        className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 select-none ${
+                          isConnecting && !isListenModeActive
+                            ? 'bg-slate-800 border-4 border-slate-700 cursor-wait'
+                            : isConnected && !isListenModeActive
+                              ? isOfflineActive 
+                                ? 'bg-red-600 text-white shadow-red-600/40 ring-4 ring-red-900/50 scale-105' 
+                                : isNoiseMode && isHoldingMic
+                                    ? 'bg-emerald-500 text-white shadow-[0_0_30px_rgba(16,185,129,0.8)] ring-4 ring-emerald-300 scale-110' // Holding visual
+                                    : 'bg-emerald-600 text-white shadow-emerald-600/40 ring-4 ring-emerald-900/50 scale-105'
+                              : 'bg-slate-100 text-slate-900 hover:bg-white border-4 border-slate-300 shadow-white/10'
+                        }`}
+                    >
+                        {isConnecting && !isListenModeActive ? (
+                           <Loader2 size={28} className="animate-spin text-slate-400" />
+                        ) : isConnected && !isListenModeActive ? (
+                           // Icon change based on hold state in noise mode
+                           isNoiseMode && isHoldingMic ? <Waves size={28} className="animate-pulse" /> : <Square size={24} fill="currentColor" className="rounded-sm" />
+                        ) : (
+                           // Icon change based on mode
+                           isNoiseMode ? <Mic size={28} strokeWidth={2.5} className="text-slate-900" /> : <Mic size={28} strokeWidth={2.5} />
+                        )}
+                    </button>
+                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                        {isNoiseMode ? 'Bas-Konuş' : 'Sohbet'}
+                    </span>
+                </div>
+
             </div>
 
             {/* Right: Target Language Selector */}
-            <div className="w-24 flex flex-col items-center gap-1">
+            <div className="w-20 flex flex-col items-center gap-1">
                <button 
                  onClick={() => setSelectorType('target')}
-                 className="w-full h-16 bg-slate-800 border border-slate-700 text-slate-200 rounded-2xl flex items-center justify-center hover:border-slate-500 transition-colors active:scale-95 touch-manipulation relative overflow-hidden group"
+                 className={`w-full h-14 border rounded-2xl flex items-center justify-center transition-all active:scale-95 touch-manipulation relative overflow-hidden group ${isListenModeActive ? 'bg-orange-900/40 border-orange-800/50 text-orange-200' : 'bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-500'}`}
                >
-                  <span className="text-4xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{targetDetails.flag}</span>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                  <span className="text-3xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{targetDetails.flag}</span>
                </button>
-               <span className="text-[10px] text-slate-500 font-medium">Hedef</span>
+               <span className={`text-[9px] font-medium ${isListenModeActive ? 'text-orange-400' : 'text-slate-500'}`}>Hedef</span>
             </div>
 
           </div>
         </div>
 
       </main>
+
+      {/* SAVE SESSION MODAL */}
+      {showSaveModal && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+              <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6">
+                  <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mb-4 text-blue-400 mx-auto">
+                      <Save size={24} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white text-center mb-2">Oturumu Kaydet?</h3>
+                  <p className="text-slate-400 text-center text-sm mb-6">
+                      Dinleme modunu kapatıyorsunuz. Bu oturumdaki çevirileri daha sonra incelemek için arşive kaydetmek ister misiniz?
+                  </p>
+                  <div className="flex gap-3">
+                      <button 
+                        onClick={discardSession}
+                        className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700"
+                      >
+                          Sil
+                      </button>
+                      <button 
+                        onClick={saveSession}
+                        className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 shadow-lg shadow-blue-900/20"
+                      >
+                          Kaydet
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
 
       {/* FULLSCREEN FOCUSED MESSAGE MODAL */}
       {focusedMessage && (
@@ -1017,7 +1291,7 @@ TIMING & PAUSES (CRITICAL):
                   </div>
                   <p className={`text-4xl font-bold leading-tight ${
                       focusedMessage.role === 'model' 
-                      ? isOfflineActive ? 'text-orange-400' : 'text-emerald-400' 
+                      ? isListenModeActive ? 'text-orange-400' : 'text-emerald-400' 
                       : 'text-white'
                   }`}>
                       {focusedMessage.text}
@@ -1076,6 +1350,38 @@ TIMING & PAUSES (CRITICAL):
              </div>
              
              <div className="p-6 overflow-y-auto space-y-6 pb-10">
+               
+               {/* Archive Button */}
+               <button 
+                  onClick={() => { setViewMode('archive'); setShowSettings(false); }}
+                  className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-colors"
+               >
+                   <div className="flex items-center gap-3">
+                       <FolderOpen size={20} className="text-orange-400" />
+                       <div className="text-left">
+                           <div className="font-semibold text-white">Kayıtlı Oturumlar</div>
+                           <div className="text-xs text-slate-500">Arşivlenmiş dinleme kayıtlarını incele</div>
+                       </div>
+                   </div>
+                   <ChevronRight size={18} className="text-slate-500" />
+               </button>
+
+               {/* Noise Mode Toggle (NEW) */}
+               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-semibold text-slate-200 flex items-center gap-2">
+                        <Waves size={18} className="text-teal-400" /> Gürültü Engelleme (Bas-Konuş)
+                    </span>
+                    <button onClick={toggleNoiseMode} 
+                      className={`w-12 h-7 rounded-full p-1 transition-colors ${isNoiseMode ? 'bg-teal-500' : 'bg-slate-700'}`}>
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isNoiseMode ? 'translate-x-5' : ''}`}></div>
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                      Kalabalık ortamlarda sadece butona bastığınızda sesi iletir. Arka plan gürültüsünü filtreler.
+                  </p>
+               </div>
+
                {/* Mode */}
                <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
                   <div className="flex justify-between items-center mb-2">
@@ -1118,7 +1424,6 @@ TIMING & PAUSES (CRITICAL):
                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">Dil Paketleri</h3>
                  <div className="space-y-3">
                     {offlinePacks.map(pack => {
-                       // Find flag based on pack ID content (simple heuristic for demo)
                        let flag = '🏳️';
                        if (pack.id.includes('en')) flag = '🇬🇧';
                        if (pack.id.includes('nl')) flag = '🇳🇱';

@@ -32,3 +32,11 @@ export interface OfflinePack {
   downloaded: boolean;
   progress: number; // 0-100
 }
+
+export interface ArchivedSession {
+  id: string;
+  date: string; // ISO String
+  targetLang: TargetLanguage;
+  preview: string;
+  messages: ChatMessage[];
+}
