@@ -3,7 +3,7 @@ import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
-import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves } from 'lucide-react';
+import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink } from 'lucide-react';
 
 // Live API Configuration
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
@@ -153,6 +153,10 @@ const App: React.FC = () => {
   const [voiceType, setVoiceType] = useState<'female' | 'male'>('female');
   const [selectorType, setSelectorType] = useState<'source' | 'target' | null>(null);
 
+  // API Key State
+  const [apiKey, setApiKey] = useState<string>('');
+  const [tempApiKeyInput, setTempApiKeyInput] = useState('');
+
   // View Modes: 'chat' | 'split' | 'listen' | 'archive'
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive'>('chat');
   const [focusedMessage, setFocusedMessage] = useState<ChatMessage | null>(null);
@@ -175,7 +179,7 @@ const App: React.FC = () => {
   
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [forceOfflineMode, setForceOfflineMode] = useState(false);
-  // NEW: Noise Mode (Push-to-Talk)
+  // Noise Mode (Push-to-Talk)
   const [isNoiseMode, setIsNoiseMode] = useState(false);
   const [isHoldingMic, setIsHoldingMic] = useState(false);
 
@@ -205,10 +209,18 @@ const App: React.FC = () => {
   const isUserScrolledUpRef = useRef(false);
 
   useEffect(() => {
-    if (process.env.API_KEY) {
-      aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Check Local Storage for API Key
+    const storedKey = localStorage.getItem('gemini_api_key');
+    if (storedKey) {
+        setApiKey(storedKey);
+        aiClientRef.current = new GoogleGenAI({ apiKey: storedKey });
+    } else if (process.env.API_KEY) {
+        // Fallback to Env if available (Dev mode)
+        setApiKey(process.env.API_KEY);
+        aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
     } else {
-      setError("API Anahtarı bulunamadı.");
+        // No Key Found - User needs to input one
+        setApiKey(''); 
     }
 
     const handleOnline = () => setIsOnline(true);
@@ -266,23 +278,30 @@ const App: React.FC = () => {
 
   const isOfflineActive = !isOnline || forceOfflineMode;
 
+  const handleSaveApiKey = () => {
+      if (!tempApiKeyInput.trim()) return;
+      const key = tempApiKeyInput.trim();
+      localStorage.setItem('gemini_api_key', key);
+      setApiKey(key);
+      aiClientRef.current = new GoogleGenAI({ apiKey: key });
+      setTempApiKeyInput('');
+      setError(null);
+  };
+
+  const handleDeleteApiKey = () => {
+      localStorage.removeItem('gemini_api_key');
+      setApiKey('');
+      aiClientRef.current = null;
+      setShowSettings(false);
+      stopConnection();
+  };
+
   const triggerHaptic = () => {
       if (navigator.vibrate) navigator.vibrate(50);
   };
 
   const processAudioInput = useCallback((inputData: Float32Array) => {
-    // MODIFIED: Gate audio transmission based on Noise Mode Logic
-    // If Noise Mode is ON, we only transmit if `isHoldingMic` is true.
-    // If Noise Mode is OFF, we transmit if `isTransmittingRef.current` is true (continuous).
-    
-    // We use a ref for 'isHolding' to avoid closure staleness if needed, but here simple logic suffices as long as state updates correctly
-    // or we can pass the holding state via ref if this callback is memoized without dependency.
-    // However, since we access state inside, we need to be careful. 
-    // Best practice: rely on ref for the "transmission gate".
-    
     if (!sessionPromiseRef.current) return;
-    
-    // NOTE: We update `isTransmittingRef` in the touch handlers for Noise Mode to ensure sync.
     if (!isTransmittingRef.current) return; 
 
     const pcmData = float32To16BitPCM(inputData);
@@ -296,7 +315,7 @@ const App: React.FC = () => {
         },
       });
     });
-  }, []); // Empty dependency array means it uses initial state closures unless refs are used.
+  }, []);
 
   const stopConnection = useCallback(() => {
     setIsConnecting(false);
@@ -336,16 +355,9 @@ const App: React.FC = () => {
   const startLiveSession = async (mode: 'bidirectional' | 'listen') => {
       triggerHaptic();
       
-      // If using toggle mode (NOT noise mode), clicking again stops it.
-      // If using noise mode (Push-to-Talk), clicking (touch start) starts it, releasing stops transmission but keeps connection?
-      // Actually, standard PTT keeps connection open but gates audio.
-      // But we need to INITIALIZE the connection first. 
-      // Let's assume standard behavior: Button initializes connection. 
-      
       if (isConnecting) return;
       if (isConnected) {
          if (!isNoiseMode) {
-             // Standard Toggle Behavior: Click to stop
             if (isListenModeActive) {
                 if (messages.length > 0) {
                     isTransmittingRef.current = false;
@@ -357,7 +369,6 @@ const App: React.FC = () => {
                 stopConnection();
             }
          }
-         // In Noise Mode, clicking the button while connected is handled by TouchStart/End to gate audio
          return;
       }
 
@@ -381,11 +392,18 @@ const App: React.FC = () => {
           return;
       }
 
+      // Check if client is ready (Key exists)
       if (!aiClientRef.current) {
-          setError("API Anahtarı eksik.");
-          setIsConnecting(false);
-          setIsListenModeActive(false);
-          return;
+           // Double check store
+           const stored = localStorage.getItem('gemini_api_key');
+           if (stored) {
+               aiClientRef.current = new GoogleGenAI({ apiKey: stored });
+           } else {
+               setError("API Anahtarı eksik. Lütfen ayarlardan giriniz.");
+               setIsConnecting(false);
+               setIsListenModeActive(false);
+               return;
+           }
       }
 
       try {
@@ -393,7 +411,7 @@ const App: React.FC = () => {
           sampleRate: INPUT_SAMPLE_RATE,
           channelCount: 1,
           echoCancellation: true,
-          noiseSuppression: true, // Crucial for noisy environments
+          noiseSuppression: true, 
           autoGainControl: true
         }});
         mediaStreamRef.current = stream;
@@ -402,16 +420,12 @@ const App: React.FC = () => {
         inputAudioContextRef.current = audioCtx;
         const source = audioCtx.createMediaStreamSource(stream);
         
-        // --- AUDIO GRAPH SETUP ---
-        // Source -> [Filter?] -> Analyser -> ScriptProcessor -> Dest
-        
         let nodeToConnectToAnalyser = source;
 
-        // Apply High-Pass Filter if in Noise Mode to cut rumble/wind/traffic
         if (isNoiseMode) {
             const highPassFilter = audioCtx.createBiquadFilter();
             highPassFilter.type = 'highpass';
-            highPassFilter.frequency.value = 100; // Cut off frequencies below 100Hz (rumble)
+            highPassFilter.frequency.value = 100; 
             highPassFilter.Q.value = 0.5;
             source.connect(highPassFilter);
             nodeToConnectToAnalyser = highPassFilter as any;
@@ -478,10 +492,7 @@ Focus on the dominant voice. Ignore background noise.`;
               console.log("Connected");
               setIsConnecting(false);
               setIsConnected(true);
-              
-              // In Noise Mode, we start CONNECTED but NOT TRANSMITTING until button press
               isTransmittingRef.current = isNoiseMode ? false : true; 
-              
               nextStartTimeRef.current = 0;
               setRealtimeInput('');
               setRealtimeOutput('');
@@ -513,15 +524,10 @@ Focus on the dominant voice. Ignore background noise.`;
 
   // --- NOISE MODE HANDLERS (Push-to-Talk) ---
   const handlePTTStart = (mode: 'bidirectional' | 'listen') => {
-      // If not connected, start connection
       if (!isConnected) {
           startLiveSession(mode);
-          // We set holding true immediately so when connection opens, we can set transmitting true if logic allows
           setIsHoldingMic(true);
-          // Wait for connection... transmission will be handled in onOpen or separate effect if we want immediate
-          // For simplicity: In NoiseMode, connection stays open. User just gates audio.
       } else {
-          // Already connected, just open the gate
           setIsHoldingMic(true);
           isTransmittingRef.current = true;
           triggerHaptic();
@@ -532,21 +538,19 @@ Focus on the dominant voice. Ignore background noise.`;
       setIsHoldingMic(false);
       if (isConnected) {
           isTransmittingRef.current = false;
-          // triggerHaptic(); // Optional feedback on release
       }
   };
 
   const handleMicToggle = () => {
-      if (isNoiseMode) return; // Handled by TouchStart/End
+      if (isNoiseMode) return;
       startLiveSession('bidirectional');
   };
   
   const handleListenToggle = () => {
-      if (isNoiseMode) return; // Handled by TouchStart/End
+      if (isNoiseMode) return;
       startLiveSession('listen');
   };
 
-  // ... (Save/Discard/ServerMessage/Language/Voice handlers remain same)
   const saveSession = () => {
       const newSession: ArchivedSession = {
           id: Date.now().toString(),
@@ -570,46 +574,40 @@ Focus on the dominant voice. Ignore background noise.`;
   };
 
   const handleServerMessage = (msg: LiveServerMessage, isListen: boolean) => {
-    // 1. Input Transcription (User/Speaker)
     if (msg.serverContent?.inputTranscription) {
        currentInputTranscription.current += msg.serverContent.inputTranscription.text;
        setRealtimeInput(currentInputTranscription.current);
     }
 
-    // 2. Output Transcription (Model/Translation)
     if (msg.serverContent?.outputTranscription) {
         currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
         
         if (isListen) {
-          // --- LISTEN MODE: STREAM-TO-HISTORY LOGIC ---
           const rawText = currentOutputTranscription.current;
           const splitMatch = rawText.match(/([.?!])\s+/);
 
           if (splitMatch && splitMatch.index !== undefined) {
-             const splitIndex = splitMatch.index + 1; // Include the punctuation
+             const splitIndex = splitMatch.index + 1; 
              const sentence = rawText.substring(0, splitIndex).trim();
              const remainder = rawText.substring(splitIndex).trim(); 
 
              if (sentence.length > 0) {
-                 addMessage('model', sentence, sourceLang); // Flush to list
+                 addMessage('model', sentence, sourceLang);
                  currentOutputTranscription.current = remainder;
              }
           }
           setRealtimeOutput(currentOutputTranscription.current);
 
         } else {
-          // Normal mode
           setRealtimeOutput(currentOutputTranscription.current);
         }
     }
 
-    // 3. Audio Output Handling
     const audioData = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
     if (audioData && !isListen) {
         playAudioResponse(audioData);
     }
 
-    // 4. Turn Complete
     if (msg.serverContent?.turnComplete) {
        const inputTx = currentInputTranscription.current.trim();
        const outputTx = currentOutputTranscription.current.trim();
@@ -665,14 +663,14 @@ Focus on the dominant voice. Ignore background noise.`;
       setIsNoiseMode(newValue);
       localStorage.setItem('isNoiseMode', JSON.stringify(newValue));
       if (isConnected) {
-          stopConnection(); // Need to restart to apply audio graph changes
+          stopConnection(); 
       }
   };
 
   useEffect(() => {
       if (shouldReconnectRef.current) {
           shouldReconnectRef.current = false;
-          handleMicToggle(); // Defaults to bidirectional reconnect logic
+          handleMicToggle();
       }
   }, [sourceLang, targetLang, voiceType]);
 
@@ -831,6 +829,48 @@ Focus on the dominant voice. Ignore background noise.`;
         <div className={`absolute top-[-10%] left-[-20%] w-[150vw] h-[60vh] rounded-full blur-[80px] opacity-20 transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-600' : isOfflineActive ? 'bg-red-600' : isConnected ? 'bg-emerald-900' : 'bg-blue-900'}`}></div>
         <div className="absolute bottom-[-10%] right-[-20%] w-[150vw] h-[50vh] bg-purple-900/10 rounded-full blur-[100px]"></div>
       </div>
+
+      {/* API KEY MODAL (If no key is present) */}
+      {!apiKey && (
+          <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 animate-fade-in">
+             <div className="w-full max-w-sm">
+                <div className="flex justify-center mb-8">
+                    <div className="w-20 h-20 bg-blue-500/10 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/20">
+                        <Key size={40} className="text-blue-400" />
+                    </div>
+                </div>
+                <h1 className="text-2xl font-bold text-center text-white mb-2">Hoş Geldiniz</h1>
+                <p className="text-slate-400 text-center mb-8">Uygulamayı kullanmak için lütfen Google Gemini API anahtarınızı giriniz.</p>
+                
+                <div className="space-y-4">
+                    <div className="relative">
+                        <div className="absolute left-4 top-3.5 text-slate-500">
+                            <Key size={18} />
+                        </div>
+                        <input 
+                           type="password"
+                           value={tempApiKeyInput}
+                           onChange={(e) => setTempApiKeyInput(e.target.value)}
+                           placeholder="API Anahtarınızı yapıştırın"
+                           className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3.5 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
+                        />
+                    </div>
+                    
+                    <button 
+                        onClick={handleSaveApiKey}
+                        disabled={!tempApiKeyInput.trim()}
+                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-blue-900/30 transition-all active:scale-[0.98]"
+                    >
+                        Giriş Yap
+                    </button>
+
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-blue-400 transition-colors mt-4">
+                        Anahtarım yok, hemen oluştur <ExternalLink size={14} />
+                    </a>
+                </div>
+             </div>
+          </div>
+      )}
 
       {/* Header */}
       <header className="z-20 h-16 flex items-center justify-between px-5 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm sticky top-0 pt-[env(safe-area-inset-top)]">
@@ -1366,7 +1406,28 @@ Focus on the dominant voice. Ignore background noise.`;
                    <ChevronRight size={18} className="text-slate-500" />
                </button>
 
-               {/* Noise Mode Toggle (NEW) */}
+               {/* API Key Management */}
+               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-semibold text-slate-200 flex items-center gap-2">
+                        <Key size={18} className="text-yellow-400" /> API Anahtarı
+                    </span>
+                    <button 
+                        onClick={handleDeleteApiKey} 
+                        className="px-3 py-1 bg-red-500/10 text-red-400 text-xs font-bold rounded-lg hover:bg-red-500/20 flex items-center gap-1"
+                    >
+                        <LogOut size={12} /> Çıkış
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mb-2">
+                      Mevcut anahtar: <span className="text-slate-300 font-mono">••••••••{apiKey.slice(-4)}</span>
+                  </p>
+                  <p className="text-[10px] text-slate-600">
+                      Bu anahtar sadece cihazınızda saklanır ve Google sunucularına iletilir.
+                  </p>
+               </div>
+
+               {/* Noise Mode Toggle */}
                <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-semibold text-slate-200 flex items-center gap-2">
