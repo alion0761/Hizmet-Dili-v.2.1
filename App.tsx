@@ -214,13 +214,15 @@ const App: React.FC = () => {
     if (storedKey) {
         setApiKey(storedKey);
         aiClientRef.current = new GoogleGenAI({ apiKey: storedKey });
-    } else if (process.env.API_KEY) {
-        // Fallback to Env if available (Dev mode)
-        setApiKey(process.env.API_KEY);
-        aiClientRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
     } else {
-        // No Key Found - User needs to input one
-        setApiKey(''); 
+        // Safe check for process.env (prevents crash in browser)
+        const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+        if (envKey) {
+            setApiKey(envKey);
+            aiClientRef.current = new GoogleGenAI({ apiKey: envKey });
+        } else {
+            setApiKey(''); 
+        }
     }
 
     const handleOnline = () => setIsOnline(true);
