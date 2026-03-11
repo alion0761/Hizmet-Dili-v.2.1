@@ -156,6 +156,17 @@ const App: React.FC = () => {
     if (savedArchive) setSavedSessions(JSON.parse(savedArchive));
   }, []);
 
+  useEffect(() => {
+    if (apiKeys.gemini) {
+      aiClientRef.current = new GoogleGenAI({ apiKey: apiKeys.gemini });
+    } else {
+      const envKey = (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : undefined);
+      if (envKey) {
+        aiClientRef.current = new GoogleGenAI({ apiKey: envKey });
+      }
+    }
+  }, [apiKeys.gemini]);
+
   const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(50); };
 
   const handleVoiceChange = (type: 'female' | 'male') => {
@@ -186,7 +197,6 @@ const App: React.FC = () => {
     if (!textInput.trim() || isTextTranslating) return;
     
     const textToTranslate = textInput.trim();
-    setTextInput('');
     setIsTextTranslating(true);
     triggerHaptic();
 
@@ -197,9 +207,12 @@ const App: React.FC = () => {
       let translatedText = '';
 
       if (selectedProvider === AIProvider.GEMINI) {
-        const ai = new GoogleGenAI({ apiKey: apiKeys.gemini || process.env.GEMINI_API_KEY || '' });
+        const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+        if (!apiKey) throw new Error("Gemini API anahtarı bulunamadı. Lütfen ayarlardan girin.");
+        
+        const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
-          model: 'gemini-1.5-flash',
+          model: 'gemini-3-flash-preview',
           contents: textToTranslate,
           config: {
             systemInstruction: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
@@ -207,6 +220,7 @@ const App: React.FC = () => {
         });
         translatedText = response.text || '';
       } else if (selectedProvider === AIProvider.OPENAI) {
+        if (!apiKeys.openai) throw new Error("OpenAI API anahtarı bulunamadı. Lütfen ayarlardan girin.");
         const openai = new OpenAI({ apiKey: apiKeys.openai, dangerouslyAllowBrowser: true });
         const response = await openai.chat.completions.create({
           model: 'gpt-4o',
@@ -217,6 +231,7 @@ const App: React.FC = () => {
         });
         translatedText = response.choices[0].message.content || '';
       } else if (selectedProvider === AIProvider.ANTHROPIC) {
+        if (!apiKeys.anthropic) throw new Error("Anthropic API anahtarı bulunamadı. Lütfen ayarlardan girin.");
         const anthropic = new Anthropic({ apiKey: apiKeys.anthropic, dangerouslyAllowBrowser: true });
         const response = await anthropic.messages.create({
           model: 'claude-3-5-sonnet-20240620',
@@ -227,15 +242,16 @@ const App: React.FC = () => {
         translatedText = (response.content[0] as any).text || '';
       }
       
+      if (!translatedText) throw new Error("Çeviri alınamadı.");
+      
       setMessages(prev => [...prev, 
         { id: Date.now().toString(), role: 'user', text: textToTranslate, timestamp: new Date(), isFinal: true },
         { id: (Date.now() + 1).toString(), role: 'model', text: translatedText, timestamp: new Date(), isFinal: true, langCode: targetLang }
       ]);
-
-      // If we want to speak the result, we could use the TTS model here
-      // But for now, let's just show it in the UI
-    } catch (error) {
+      setTextInput(''); // Only clear on success
+    } catch (error: any) {
       console.error("Text translation error:", error);
+      setError(error.message || "Çeviri sırasında bir hata oluştu.");
     } finally {
       setIsTextTranslating(false);
     }
@@ -450,6 +466,19 @@ const App: React.FC = () => {
           </button>
         </div>
       </header>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="z-50 bg-red-600 text-white px-4 py-2 flex items-center justify-between animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Zap size={16} fill="currentColor" />
+            <span>{error}</span>
+          </div>
+          <button onClick={() => setError(null)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* MAIN CONTENT */}
       <main className="flex-1 overflow-hidden relative flex flex-col z-10">
