@@ -80,6 +80,12 @@ const App: React.FC = () => {
   const [tempProviderInput, setTempProviderInput] = useState<AIProvider>(AIProvider.GEMINI);
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive'>('chat');
   
+  // Voice Preference: 'female' | 'male'
+  const [voiceType, setVoiceType] = useState<'female' | 'male'>(() => {
+    const saved = localStorage.getItem('voiceType');
+    return (saved === 'male' || saved === 'female') ? saved : 'female';
+  });
+
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -151,6 +157,18 @@ const App: React.FC = () => {
   }, []);
 
   const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(50); };
+
+  const handleVoiceChange = (type: 'female' | 'male') => {
+    setVoiceType(type);
+    localStorage.setItem('voiceType', type);
+    triggerHaptic();
+    
+    // If connected online, reconnect to apply new voice
+    if (isConnected && !isListenModeActive) {
+      stopConnection();
+      setTimeout(() => startLiveSession('bidirectional'), 300);
+    }
+  };
 
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
@@ -308,7 +326,11 @@ const App: React.FC = () => {
              Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.`,
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {}, outputAudioTranscription: {},
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' }
+            }
+          }
         },
         callbacks: {
           onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
@@ -403,7 +425,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <span className="font-bold text-lg leading-none">Ai Live Translate</span>
-            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? 'Dinleme Modu' : 'Developed by Ali TELLIOGLU'}</span>
+            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? 'Dinleme Modu' : 'Developer by Ali TELLIOGLU'}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -802,6 +824,31 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {/* Voice Selection */}
+                <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-4">
+                   <div className="flex items-center gap-2 px-1">
+                       <User size={16} className="text-blue-400" />
+                       <span className="font-bold text-slate-200 text-sm uppercase tracking-widest">Ses Tercihi</span>
+                   </div>
+                   <div className="grid grid-cols-2 gap-3">
+                       <button 
+                         onClick={() => handleVoiceChange('female')}
+                         className={`py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all border ${voiceType === 'female' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                       >
+                           <span className="text-2xl">👩</span>
+                           <span className="font-bold text-xs">Kadın</span>
+                       </button>
+                       <button 
+                         onClick={() => handleVoiceChange('male')}
+                         className={`py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all border ${voiceType === 'male' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                       >
+                           <span className="text-2xl">👨</span>
+                           <span className="font-bold text-xs">Erkek</span>
+                       </button>
+                   </div>
+                   <p className="text-[10px] text-slate-500 px-1 italic">Çevirmen sesi (Sadece Gemini Live modunda geçerlidir).</p>
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -845,14 +892,28 @@ const App: React.FC = () => {
               <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-400 font-bold">v1.2</span>
+                  <span className="text-blue-400 font-bold">v1.3</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">Bilgi ve Rehber</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>Kullanım Kılavuzu ve Güncellemeler bölümleri eklendi.</li>
+                  <li>Ses Tercihi (Kadın/Erkek) özelliği getirildi.</li>
+                  <li>Haptik geri bildirim desteği eklendi.</li>
+                  <li>Yazım hataları düzeltildi ("Developer" imzası).</li>
+                </ul>
+              </div>
+
+              <div className="relative pl-8 border-l-2 border-slate-800 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-700 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-bold">v1.2</span>
                   <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
                 </div>
                 <h4 className="font-bold text-lg">Çoklu Model Desteği</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
                   <li>OpenAI (GPT-4o) ve Anthropic (Claude 3.5 Sonnet) desteği eklendi.</li>
                   <li>Çoklu API anahtarı yönetimi ve sağlayıcı seçimi getirildi.</li>
-                  <li>Klavye girişi ile yapılan çevirilerde model seçimi aktif edildi.</li>
                 </ul>
               </div>
               
@@ -865,7 +926,7 @@ const App: React.FC = () => {
                 <h4 className="font-bold text-lg">Yenilenen Kimlik</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
                   <li>Uygulama ismi "Ai Live Translate" olarak güncellendi.</li>
-                  <li>"Developed by Ali TELLIOGLU" imzası eklendi.</li>
+                  <li>"Developer by Ali TELLIOGLU" imzası eklendi.</li>
                   <li>Yeni logo ve görsel düzenlemeler yapıldı.</li>
                 </ul>
               </div>
@@ -925,6 +986,13 @@ const App: React.FC = () => {
                 <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yapay Zeka Modelleri</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
                   Ayarlar menüsünden çeviri yapacak beyni seçebilirsiniz. Gemini Live API en hızlı sesli deneyimi sunarken, OpenAI ve Anthropic modelleri yazılı çevirilerde alternatif zeka seviyeleri sunar.
+                </p>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Ses Tercihi</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Ayarlar menüsünden çevirmenin sesini "Kadın" veya "Erkek" olarak değiştirebilirsiniz. Bu ayar Gemini Live modu aktifken geçerlidir ve çevirilerin seslendirilme tonunu belirler.
                 </p>
               </section>
 
