@@ -523,38 +523,38 @@ const App: React.FC = () => {
           </div>
         ) : viewMode === 'listen' ? (
           <div className="flex-1 overflow-y-auto px-6 py-10 space-y-10 no-scrollbar">
-             {realtimeInput && (
-               <div className="opacity-40 animate-pulse">
-                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 block mb-2">Dinleniyor ({targetDetails.short})</span>
-                 <p className="text-2xl italic leading-relaxed">{realtimeInput}...</p>
-               </div>
-             )}
-             {messages.filter(m => m.role === 'model').map(m => (
-               <div key={m.id} className="animate-fade-in-up">
-                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çeviri ({sourceDetails.short})</span>
-                 <p className="text-4xl font-bold leading-tight drop-shadow-sm">{m.text}</p>
-               </div>
-             ))}
              {realtimeOutput && (
                <div className="animate-fade-in">
                  <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çevriliyor...</span>
                  <p className="text-4xl font-bold text-orange-200 leading-tight">{realtimeOutput}</p>
                </div>
              )}
+             {[...messages].filter(m => m.role === 'model').reverse().map(m => (
+               <div key={m.id} className="animate-fade-in-up">
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çeviri ({sourceDetails.short})</span>
+                 <p className="text-4xl font-bold leading-tight drop-shadow-sm">{m.text}</p>
+               </div>
+             ))}
+             {realtimeInput && (
+               <div className="opacity-40 animate-pulse">
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 block mb-2">Dinleniyor ({targetDetails.short})</span>
+                 <p className="text-2xl italic leading-relaxed">{realtimeInput}...</p>
+               </div>
+             )}
              <div className="h-40"></div>
           </div>
         ) : viewMode === 'split' ? (
-          <div className="flex-1 flex flex-col">
-            <div className="flex-1 bg-slate-900/50 flex items-center justify-center p-10 rotate-180 border-b border-white/5">
-               <div className="text-center space-y-4">
-                 <span className="text-sm font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
-                 <p className="text-4xl font-bold text-emerald-400 leading-tight">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
+          <div className="flex-1 flex flex-col pb-48">
+            <div className="flex-1 bg-slate-900/50 flex items-center justify-center p-6 rotate-180 border-b border-white/5 overflow-y-auto">
+               <div className="text-center space-y-2 w-full max-w-2xl">
+                 <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
+                 <p className="text-2xl sm:text-4xl font-bold text-emerald-400 leading-tight break-words">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
                </div>
             </div>
-            <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-10">
-               <div className="text-center space-y-4">
-                 <span className="text-sm font-bold text-blue-500/50 uppercase tracking-[0.3em]">{sourceDetails.name}</span>
-                 <p className="text-4xl font-bold text-white leading-tight">{realtimeInput || messages.filter(m => m.role === 'user').pop()?.text || '...'}</p>
+            <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-6 overflow-y-auto">
+               <div className="text-center space-y-2 w-full max-w-2xl">
+                 <span className="text-[10px] font-bold text-blue-500/50 uppercase tracking-[0.3em]">{sourceDetails.name}</span>
+                 <p className="text-2xl sm:text-4xl font-bold text-white leading-tight break-words">{realtimeInput || messages.filter(m => m.role === 'user').pop()?.text || '...'}</p>
                </div>
             </div>
           </div>
@@ -600,7 +600,7 @@ const App: React.FC = () => {
           </div>
           
           {/* TEXT INPUT TRANSLATION */}
-          {isKeyboardVisible && !isListenModeActive && viewMode !== 'split' && (
+          {isKeyboardVisible && !isListenModeActive && (
             <div className="max-w-md mx-auto mb-6 px-4 animate-in slide-in-from-bottom-4 duration-300">
               <div className="relative flex items-center group">
                 <input 
