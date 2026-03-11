@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession } from './types';
+import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
-import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink } from 'lucide-react';
+import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen } from 'lucide-react';
 
 // Live API Configuration
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
 
-// Language Metadata with Flags and Locales for Speech Recognition/Synthesis
+// Language Metadata
 const LANGUAGE_META = [
   { code: TargetLanguage.TURKISH, name: 'Türkçe', flag: '🇹🇷', short: 'TR', locale: 'tr-TR' },
   { code: TargetLanguage.ENGLISH, name: 'İngilizce', flag: '🇬🇧', short: 'EN', locale: 'en-US' },
@@ -21,109 +23,38 @@ const LANGUAGE_META = [
   { code: TargetLanguage.ITALIAN, name: 'İtalyanca', flag: '🇮🇹', short: 'IT', locale: 'it-IT' },
   { code: TargetLanguage.FRENCH, name: 'Fransızca', flag: '🇫🇷', short: 'FR', locale: 'fr-FR' },
   { code: TargetLanguage.UKRAINIAN, name: 'Ukraynaca', flag: '🇺🇦', short: 'UA', locale: 'uk-UA' },
+  { code: TargetLanguage.PORTUGUESE, name: 'Portekizce', flag: '🇵🇹', short: 'PT', locale: 'pt-PT' },
+  { code: TargetLanguage.CHINESE, name: 'Çince', flag: '🇨🇳', short: 'ZH', locale: 'zh-CN' },
+  { code: TargetLanguage.SPANISH, name: 'İspanyolca', flag: '🇪🇸', short: 'ES', locale: 'es-ES' },
+  { code: TargetLanguage.JAPANESE, name: 'Japonca', flag: '🇯🇵', short: 'JA', locale: 'ja-JP' },
 ];
 
 const getLangDetails = (lang?: TargetLanguage) => {
-    if (!lang) return LANGUAGE_META[0];
-    return LANGUAGE_META.find(l => l.code === lang) || LANGUAGE_META[0];
+  if (!lang) return LANGUAGE_META[0];
+  return LANGUAGE_META.find(l => l.code === lang) || LANGUAGE_META[0];
 };
 
-// --- ROBUST CLIENT-SIDE LANGUAGE DETECTION ---
+// Advanced Client-Side Language Detection
 const COMMON_WORDS: Record<string, Set<string>> = {
-  [TargetLanguage.TURKISH]: new Set([
-    've', 'bir', 'bu', 'da', 'de', 'için', 'ben', 'sen', 'o', 'biz', 'siz', 'onlar', 
-    'ama', 'fakat', 'ile', 'ne', 'gibi', 'var', 'yok', 'çok', 'daha', 'en', 'kadar', 
-    'olarak', 'diye', 'zaman', 'şey', 'bunu', 'şunu', 'bana', 'sana', 'ona', 'evet', 
-    'hayır', 'merhaba', 'nasıl', 'neden', 'niçin', 'kim', 'mu', 'mı', 'mi', 'mü'
-  ]),
-  [TargetLanguage.ENGLISH]: new Set([
-    'the', 'and', 'is', 'it', 'to', 'in', 'you', 'that', 'of', 'for', 'on', 'are', 
-    'with', 'as', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 
-    'word', 'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 
-    'there', 'use', 'an', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'hello', 'hi'
-  ]),
-  [TargetLanguage.DUTCH]: new Set([
-    'de', 'het', 'een', 'en', 'van', 'ik', 'te', 'dat', 'die', 'in', 'is', 'op', 
-    'voor', 'met', 'niet', 'zijn', 'er', 'wat', 'maar', 'om', 'ook', 'als', 'bij', 
-    'of', 'uw', 'je', 'hij', 'u', 'aan', 'zo', 'dan', 'hij', 'wij', 'we', 'ze', 
-    'hallo', 'ja', 'nee', 'goed', 'waar', 'waarom', 'hoe'
-  ]),
-  [TargetLanguage.GERMAN]: new Set([
-    'die', 'der', 'und', 'in', 'zu', 'den', 'das', 'nicht', 'von', 'sie', 'ist', 
-    'des', 'sich', 'mit', 'dem', 'dass', 'er', 'es', 'ein', 'ich', 'auf', 'so', 
-    'eine', 'auch', 'als', 'an', 'nach', 'wie', 'im', 'für', 'man', 'aber', 'aus', 
-    'hallo', 'ja', 'nein', 'wir', 'ihr', 'warum', 'wer'
-  ]),
-  [TargetLanguage.FRENCH]: new Set([
-    'le', 'la', 'les', 'de', 'et', 'un', 'une', 'est', 'je', 'à', 'en', 'que', 
-    'du', 'il', 'elle', 'dans', 'pour', 'pas', 'sur', 'au', 'ce', 'ne', 'plus', 
-    'se', 'par', 'avec', 'tout', 'faire', 'son', 'ses', 'sa', 'mais', 'nous', 
-    'vous', 'ils', 'elles', 'bonjour', 'oui', 'non', 'merci'
-  ]),
-  [TargetLanguage.ITALIAN]: new Set([
-    'il', 'la', 'i', 'gli', 'le', 'di', 'e', 'che', 'un', 'una', 'è', 'in', 
-    'per', 'non', 'con', 'sono', 'ma', 'come', 'questo', 'quello', 'più', 'o', 
-    'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'ciao', 'si', 'no', 'perché', 
-    'dove', 'quando', 'chi'
-  ]),
-  [TargetLanguage.UKRAINIAN]: new Set([
-    'і', 'в', 'на', 'не', 'що', 'з', 'я', 'як', 'це', 'до', 'ми', 'ти', 'він', 'вона', 'вони', 
-    'але', 'так', 'ні', 'привіт', 'дякую', 'будь', 'ласка', 'добрий', 'день', 'мене', 'звати',
-    'дуже', 'добре', 'де', 'коли', 'хто', 'чому', 'ви', 'вас', 'мені', 'нам', 'їх'
-  ])
+  [TargetLanguage.TURKISH]: new Set(['ve', 'bir', 'bu', 'da', 'de', 'için', 'ben', 'sen', 'o', 'biz', 'siz', 'evet', 'hayır']),
+  [TargetLanguage.ENGLISH]: new Set(['the', 'and', 'is', 'it', 'to', 'in', 'you', 'that', 'of', 'for', 'on', 'are', 'hello']),
+  [TargetLanguage.ARABIC]: new Set(['من', 'في', 'على', 'ان', 'لا', 'ما', 'هو', 'يا', 'نحن', 'هذا']),
 };
 
 const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLanguage): TargetLanguage => {
-  if (!text || text.length < 2) return langA; 
-
+  if (!text || text.length < 2) return langA;
   const t = text.toLowerCase().trim();
 
-  const isArabic = /[\u0600-\u06FF]/.test(text);
-  const isCyrillic = /[\u0400-\u04FF]/.test(text);
-
-  if (langA === TargetLanguage.ARABIC && isArabic) return langA;
-  if (langB === TargetLanguage.ARABIC && isArabic) return langB;
-  
-  if (isCyrillic) {
-      const isUkrainianSpecific = /[іїєґІЇЄҐ]/.test(text);
-      const isRussianSpecific = /[ыэёъЫЭЁЪ]/.test(text);
-
-      if (isUkrainianSpecific) {
-           if (langA === TargetLanguage.UKRAINIAN) return langA;
-           if (langB === TargetLanguage.UKRAINIAN) return langB;
-      }
-      if (isRussianSpecific) {
-           if (langA === TargetLanguage.RUSSIAN) return langA;
-           if (langB === TargetLanguage.RUSSIAN) return langB;
-      }
-      const isACyrillicLang = langA === TargetLanguage.RUSSIAN || langA === TargetLanguage.UKRAINIAN;
-      const isBCyrillicLang = langB === TargetLanguage.RUSSIAN || langB === TargetLanguage.UKRAINIAN;
-      if (isACyrillicLang && !isBCyrillicLang) return langA;
-      if (!isACyrillicLang && isBCyrillicLang) return langB;
+  // Script checks
+  if (/[\u0600-\u06FF]/.test(text)) return TargetLanguage.ARABIC;
+  if (/[\u0400-\u04FF]/.test(text)) {
+    return (text.includes('і') || text.includes('є')) ? TargetLanguage.UKRAINIAN : TargetLanguage.RUSSIAN;
   }
-
-  if (/[ğıİşŞ]/.test(text)) {
-      if (langA === TargetLanguage.TURKISH) return langA;
-      if (langB === TargetLanguage.TURKISH) return langB;
-  }
-  if (/ß/.test(text)) {
-      if (langA === TargetLanguage.GERMAN) return langA;
-      if (langB === TargetLanguage.GERMAN) return langB;
-  }
-  if (/œ/.test(text)) {
-      if (langA === TargetLanguage.FRENCH) return langA;
-      if (langB === TargetLanguage.FRENCH) return langB;
-  }
+  if (/[ğıİşŞ]/.test(text)) return TargetLanguage.TURKISH;
 
   const getScore = (l: TargetLanguage) => {
-      if (!COMMON_WORDS[l]) return 0;
-      const words = t.split(/[\s,.?!:;"']+/);
-      let matchCount = 0;
-      for (const w of words) {
-          if (w.length < 2) continue;
-          if (COMMON_WORDS[l].has(w)) matchCount++;
-      }
-      return matchCount;
+    if (!COMMON_WORDS[l]) return 0;
+    return t.split(/\s+/).filter(w => COMMON_WORDS[l].has(w)).length;
   };
 
   const scoreA = getScore(langA);
@@ -131,1411 +62,879 @@ const detectLanguage = (text: string, langA: TargetLanguage, langB: TargetLangua
 
   if (scoreA > scoreB) return langA;
   if (scoreB > scoreA) return langB;
-
   return langA;
 };
 
-// Mock Offline Packs
 const INITIAL_PACKS: OfflinePack[] = [
   { id: 'tr-en', pair: 'TR ↔ EN', name: 'İngilizce', size: '45 MB', downloaded: false, progress: 0 },
   { id: 'tr-nl', pair: 'TR ↔ NL', name: 'Hollandaca', size: '42 MB', downloaded: false, progress: 0 },
-  { id: 'tr-ar', pair: 'TR ↔ AR', name: 'Arapça', size: '50 MB', downloaded: false, progress: 0 },
-  { id: 'tr-ru', pair: 'TR ↔ RU', name: 'Rusça', size: '48 MB', downloaded: false, progress: 0 },
   { id: 'tr-de', pair: 'TR ↔ DE', name: 'Almanca', size: '44 MB', downloaded: false, progress: 0 },
-  { id: 'tr-it', pair: 'TR ↔ IT', name: 'İtalyanca', size: '43 MB', downloaded: false, progress: 0 },
-  { id: 'tr-fr', pair: 'TR ↔ FR', name: 'Fransızca', size: '46 MB', downloaded: false, progress: 0 },
-  { id: 'tr-ua', pair: 'TR ↔ UA', name: 'Ukraynaca', size: '47 MB', downloaded: false, progress: 0 },
 ];
 
 const App: React.FC = () => {
   const [sourceLang, setSourceLang] = useState<TargetLanguage>(TargetLanguage.TURKISH);
   const [targetLang, setTargetLang] = useState<TargetLanguage>(TargetLanguage.ENGLISH);
-  const [voiceType, setVoiceType] = useState<'female' | 'male'>('female');
-  const [selectorType, setSelectorType] = useState<'source' | 'target' | null>(null);
-
-  // API Key State
-  const [apiKey, setApiKey] = useState<string>('');
+  const [apiKeys, setApiKeys] = useState<APIKeys>({});
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [tempApiKeyInput, setTempApiKeyInput] = useState('');
-
-  // View Modes: 'chat' | 'split' | 'listen' | 'archive'
+  const [tempProviderInput, setTempProviderInput] = useState<AIProvider>(AIProvider.GEMINI);
   const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive'>('chat');
-  const [focusedMessage, setFocusedMessage] = useState<ChatMessage | null>(null);
-  const [openedArchive, setOpenedArchive] = useState<ArchivedSession | null>(null);
-
+  
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  
-  // Listen Mode specific state
-  const [isListenModeActive, setIsListenModeActive] = useState(false);
-  const [showSaveModal, setShowSaveModal] = useState(false);
-
-  const [isOfflineReverse, setIsOfflineReverse] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [savedSessions, setSavedSessions] = useState<ArchivedSession[]>([]);
   const [error, setError] = useState<string | null>(null);
-  
   const [realtimeInput, setRealtimeInput] = useState('');
   const [realtimeOutput, setRealtimeOutput] = useState('');
-  
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [forceOfflineMode, setForceOfflineMode] = useState(false);
-  // Noise Mode (Push-to-Talk)
   const [isNoiseMode, setIsNoiseMode] = useState(false);
   const [isHoldingMic, setIsHoldingMic] = useState(false);
-
   const [showSettings, setShowSettings] = useState(false);
+  const [isListenModeActive, setIsListenModeActive] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [savedSessions, setSavedSessions] = useState<ArchivedSession[]>([]);
+  const [openedArchive, setOpenedArchive] = useState<ArchivedSession | null>(null);
   const [offlinePacks, setOfflinePacks] = useState<OfflinePack[]>(INITIAL_PACKS);
-  
+  const [showLangSelector, setShowLangSelector] = useState<'source' | 'target' | null>(null);
+  const [textInput, setTextInput] = useState('');
+  const [isTextTranslating, setIsTextTranslating] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [showUpdates, setShowUpdates] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
+
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
   const inputAnalyserRef = useRef<AnalyserNode | null>(null);
   const outputAnalyserRef = useRef<AnalyserNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
-  
   const aiClientRef = useRef<GoogleGenAI | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const activeSessionRef = useRef<any>(null);
-  const shouldReconnectRef = useRef(false);
   const nextStartTimeRef = useRef<number>(0);
-  const sourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const isTransmittingRef = useRef(false);
-  
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
-  const recognitionRef = useRef<any>(null);
-
-  // Smart Scrolling Ref
-  const isUserScrolledUpRef = useRef(false);
 
   useEffect(() => {
-    // Check Local Storage for API Key
-    const storedKey = localStorage.getItem('gemini_api_key');
-    if (storedKey) {
-        setApiKey(storedKey);
-        aiClientRef.current = new GoogleGenAI({ apiKey: storedKey });
+    const storedKeys = localStorage.getItem('ai_api_keys');
+    const storedProvider = localStorage.getItem('selected_provider');
+    
+    if (storedKeys) {
+      const keys = JSON.parse(storedKeys);
+      setApiKeys(keys);
+      if (keys.gemini) {
+        aiClientRef.current = new GoogleGenAI({ apiKey: keys.gemini });
+      }
     } else {
-        // Safe check for process.env (prevents crash in browser)
+      // Fallback for old single key storage
+      const oldKey = localStorage.getItem('gemini_api_key');
+      if (oldKey) {
+        const keys = { gemini: oldKey };
+        setApiKeys(keys);
+        localStorage.setItem('ai_api_keys', JSON.stringify(keys));
+        aiClientRef.current = new GoogleGenAI({ apiKey: oldKey });
+      } else {
         const envKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
         if (envKey) {
-            setApiKey(envKey);
-            aiClientRef.current = new GoogleGenAI({ apiKey: envKey });
-        } else {
-            setApiKey(''); 
-        }
-    }
-
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => {
-      setIsOnline(false);
-      stopConnection();
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    const savedPacks = localStorage.getItem('offlinePacks');
-    if (savedPacks) {
-      setOfflinePacks(JSON.parse(savedPacks));
-    }
-    const savedVoice = localStorage.getItem('voiceType');
-    if (savedVoice === 'male' || savedVoice === 'female') {
-        setVoiceType(savedVoice);
-    }
-    
-    // Load Noise Mode Preference
-    const savedNoiseMode = localStorage.getItem('isNoiseMode');
-    if (savedNoiseMode) {
-        setIsNoiseMode(JSON.parse(savedNoiseMode));
-    }
-
-    const loadedSessions = localStorage.getItem('archivedSessions');
-    if (loadedSessions) {
-        setSavedSessions(JSON.parse(loadedSessions));
-    }
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Screen Wake Lock
-  useEffect(() => {
-    let wakeLock: any = null;
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && isConnected) {
-        try {
-          wakeLock = await (navigator as any).wakeLock.request('screen');
-        } catch (err) {
-          console.log('Wake Lock Error:', err);
+          const keys = { gemini: envKey };
+          setApiKeys(keys);
+          aiClientRef.current = new GoogleGenAI({ apiKey: envKey });
         }
       }
-    };
-    if (isConnected) requestWakeLock();
-    return () => {
-      if (wakeLock) wakeLock.release();
-    };
-  }, [isConnected]);
+    }
 
-  const isOfflineActive = !isOnline || forceOfflineMode;
+    if (storedProvider) {
+      setSelectedProvider(storedProvider as AIProvider);
+    }
 
-  const handleSaveApiKey = () => {
-      if (!tempApiKeyInput.trim()) return;
-      const key = tempApiKeyInput.trim();
-      localStorage.setItem('gemini_api_key', key);
-      setApiKey(key);
-      aiClientRef.current = new GoogleGenAI({ apiKey: key });
-      setTempApiKeyInput('');
-      setError(null);
-  };
-
-  const handleDeleteApiKey = () => {
-      localStorage.removeItem('gemini_api_key');
-      setApiKey('');
-      aiClientRef.current = null;
-      setShowSettings(false);
-      stopConnection();
-  };
-
-  const triggerHaptic = () => {
-      if (navigator.vibrate) navigator.vibrate(50);
-  };
-
-  const processAudioInput = useCallback((inputData: Float32Array) => {
-    if (!sessionPromiseRef.current) return;
-    if (!isTransmittingRef.current) return; 
-
-    const pcmData = float32To16BitPCM(inputData);
-    const base64Data = arrayBufferToBase64(pcmData);
-
-    sessionPromiseRef.current.then((session) => {
-      session.sendRealtimeInput({
-        media: {
-          mimeType: `audio/pcm;rate=${INPUT_SAMPLE_RATE}`,
-          data: base64Data,
-        },
-      });
-    });
+    const savedArchive = localStorage.getItem('archivedSessions');
+    if (savedArchive) setSavedSessions(JSON.parse(savedArchive));
   }, []);
+
+  const triggerHaptic = () => { if (navigator.vibrate) navigator.vibrate(50); };
 
   const stopConnection = useCallback(() => {
-    setIsConnecting(false);
-    setIsConnected(false);
-    setIsListenModeActive(false); 
-    isTransmittingRef.current = false;
-    triggerHaptic();
-    
+    setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
-    
-    if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
-        mediaStreamRef.current = null;
-    }
-    if (scriptProcessorRef.current) {
-        scriptProcessorRef.current.disconnect();
-        scriptProcessorRef.current = null;
-    }
-    if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close();
-        inputAudioContextRef.current = null;
-    }
-    if (outputAudioContextRef.current) {
-        outputAudioContextRef.current.close();
-        outputAudioContextRef.current = null;
-    }
-    if (activeSessionRef.current) {
-        activeSessionRef.current.close();
-        activeSessionRef.current = null;
-    }
+    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+    if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
+    if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
+    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
+    if (activeSessionRef.current) activeSessionRef.current.close();
     sessionPromiseRef.current = null;
-    if (recognitionRef.current) {
-        recognitionRef.current.stop();
-    }
+    triggerHaptic();
   }, []);
 
-  const startLiveSession = async (mode: 'bidirectional' | 'listen') => {
-      triggerHaptic();
-      
-      if (isConnecting) return;
-      if (isConnected) {
-         if (!isNoiseMode) {
-            if (isListenModeActive) {
-                if (messages.length > 0) {
-                    isTransmittingRef.current = false;
-                    setShowSaveModal(true);
-                } else {
-                    stopConnection();
-                }
-            } else {
-                stopConnection();
-            }
-         }
-         return;
-      }
+  const handleTextSubmit = async () => {
+    if (!textInput.trim() || isTextTranslating) return;
+    
+    const textToTranslate = textInput.trim();
+    setTextInput('');
+    setIsTextTranslating(true);
+    triggerHaptic();
 
-      setIsConnecting(true);
-      setError(null);
-      
-      const isListen = mode === 'listen';
-      if (isListen) {
-          setViewMode('listen');
-          setIsListenModeActive(true);
-          setMessages([]); 
-      }
+    const sourceDetails = getLangDetails(sourceLang);
+    const targetDetails = getLangDetails(targetLang);
 
-      if (isOfflineActive) {
-          setTimeout(() => {
-            setIsConnected(true);
-            isTransmittingRef.current = true;
-            setIsConnecting(false);
-            startOfflineRecognition();
-          }, 300);
-          return;
-      }
+    try {
+      let translatedText = '';
 
-      // Check if client is ready (Key exists)
-      if (!aiClientRef.current) {
-           // Double check store
-           const stored = localStorage.getItem('gemini_api_key');
-           if (stored) {
-               aiClientRef.current = new GoogleGenAI({ apiKey: stored });
-           } else {
-               setError("API Anahtarı eksik. Lütfen ayarlardan giriniz.");
-               setIsConnecting(false);
-               setIsListenModeActive(false);
-               return;
-           }
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-          sampleRate: INPUT_SAMPLE_RATE,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true, 
-          autoGainControl: true
-        }});
-        mediaStreamRef.current = stream;
-
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: INPUT_SAMPLE_RATE });
-        inputAudioContextRef.current = audioCtx;
-        const source = audioCtx.createMediaStreamSource(stream);
-        
-        let nodeToConnectToAnalyser = source;
-
-        if (isNoiseMode) {
-            const highPassFilter = audioCtx.createBiquadFilter();
-            highPassFilter.type = 'highpass';
-            highPassFilter.frequency.value = 100; 
-            highPassFilter.Q.value = 0.5;
-            source.connect(highPassFilter);
-            nodeToConnectToAnalyser = highPassFilter as any;
-        }
-
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        inputAnalyserRef.current = analyser;
-        
-        const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
-        scriptProcessorRef.current = scriptProcessor;
-        scriptProcessor.onaudioprocess = (e) => {
-          const inputData = e.inputBuffer.getChannelData(0);
-          processAudioInput(inputData);
-        };
-
-        nodeToConnectToAnalyser.connect(analyser);
-        analyser.connect(scriptProcessor);
-        scriptProcessor.connect(audioCtx.destination);
-
-        const outCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: OUTPUT_SAMPLE_RATE });
-        outputAudioContextRef.current = outCtx;
-        const outAnalyser = outCtx.createAnalyser();
-        outAnalyser.fftSize = 256;
-        outputAnalyserRef.current = outAnalyser;
-        outAnalyser.connect(outCtx.destination);
-
-        const sourceDetails = getLangDetails(sourceLang);
-        const targetDetails = getLangDetails(targetLang);
-        const voiceName = voiceType === 'female' ? 'Kore' : 'Fenrir';
-
-        let systemPrompt = "";
-        const modalities: Modality[] = [Modality.AUDIO]; 
-
-        if (isListen) {
-            systemPrompt = `You are a professional simultaneous interpreter.
-Source Language: ${targetDetails.name}
-Target Language: ${sourceDetails.name} (Turkish)
-TASK: Translate the dominant speaker's speech into Turkish IMMEDIATELY.
-CRITICAL PROTOCOLS:
-1. **FOCUS ON DOMINANT VOICE:** Ignore background noise.
-2. **STREAMING OUTPUT:** Translate phrase-by-phrase.
-3. **PUNCTUATION:** Use correct punctuation (., ?, !) to clearly mark the end of segments.`;
-        } else {
-            systemPrompt = `You are a professional bidirectional interpreter.
-Languages: ${sourceDetails.name} <-> ${targetDetails.name}.
-CORE FUNCTION: Listen, detect language, translate to the OTHER language.
-Focus on the dominant voice. Ignore background noise.`;
-        }
-
-        const connectPromise = aiClientRef.current.live.connect({
-          model: MODEL_NAME,
+      if (selectedProvider === AIProvider.GEMINI) {
+        const ai = new GoogleGenAI({ apiKey: apiKeys.gemini || process.env.GEMINI_API_KEY || '' });
+        const response = await ai.models.generateContent({
+          model: 'gemini-1.5-flash',
+          contents: textToTranslate,
           config: {
-            systemInstruction: systemPrompt,
-            responseModalities: modalities, 
-            inputAudioTranscription: {},
-            outputAudioTranscription: {}, 
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } }
-            }
-          },
-          callbacks: {
-            onopen: () => {
-              console.log("Connected");
-              setIsConnecting(false);
-              setIsConnected(true);
-              isTransmittingRef.current = isNoiseMode ? false : true; 
-              nextStartTimeRef.current = 0;
-              setRealtimeInput('');
-              setRealtimeOutput('');
-            },
-            onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
-            onclose: () => {
-              console.log("Closed");
-              stopConnection();
-            },
-            onerror: (e) => {
-              console.error(e);
-              setError("Bağlantı hatası.");
-              stopConnection();
-            }
+            systemInstruction: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
           }
         });
-        
-        sessionPromiseRef.current = connectPromise;
-        connectPromise.then(session => {
-            activeSessionRef.current = session;
+        translatedText = response.text || '';
+      } else if (selectedProvider === AIProvider.OPENAI) {
+        const openai = new OpenAI({ apiKey: apiKeys.openai, dangerouslyAllowBrowser: true });
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.` },
+            { role: 'user', content: textToTranslate }
+          ]
         });
-
-      } catch (e: any) {
-        console.error(e);
-        setError(`Hata: ${e.message}`);
-        stopConnection();
+        translatedText = response.choices[0].message.content || '';
+      } else if (selectedProvider === AIProvider.ANTHROPIC) {
+        const anthropic = new Anthropic({ apiKey: apiKeys.anthropic, dangerouslyAllowBrowser: true });
+        const response = await anthropic.messages.create({
+          model: 'claude-3-5-sonnet-20240620',
+          max_tokens: 1024,
+          system: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
+          messages: [{ role: 'user', content: textToTranslate }]
+        });
+        translatedText = (response.content[0] as any).text || '';
       }
+      
+      setMessages(prev => [...prev, 
+        { id: Date.now().toString(), role: 'user', text: textToTranslate, timestamp: new Date(), isFinal: true },
+        { id: (Date.now() + 1).toString(), role: 'model', text: translatedText, timestamp: new Date(), isFinal: true, langCode: targetLang }
+      ]);
+
+      // If we want to speak the result, we could use the TTS model here
+      // But for now, let's just show it in the UI
+    } catch (error) {
+      console.error("Text translation error:", error);
+    } finally {
+      setIsTextTranslating(false);
+    }
   };
 
-  // --- NOISE MODE HANDLERS (Push-to-Talk) ---
-  const handlePTTStart = (mode: 'bidirectional' | 'listen') => {
-      if (!isConnected) {
-          startLiveSession(mode);
-          setIsHoldingMic(true);
-      } else {
-          setIsHoldingMic(true);
-          isTransmittingRef.current = true;
-          triggerHaptic();
-      }
-  };
-
-  const handlePTTEnd = () => {
-      setIsHoldingMic(false);
+  const startLiveSession = async (mode: 'bidirectional' | 'listen') => {
+    if (isConnecting || isConnected) {
       if (isConnected) {
-          isTransmittingRef.current = false;
+        if (mode === 'listen' && messages.length > 0) setShowSaveModal(true);
+        else stopConnection();
       }
-  };
+      return;
+    }
+    setIsConnecting(true); setError(null);
+    const isListen = mode === 'listen';
+    if (isListen) { setViewMode('listen'); setIsListenModeActive(true); setMessages([]); }
 
-  const handleMicToggle = () => {
-      if (isNoiseMode) return;
-      startLiveSession('bidirectional');
-  };
-  
-  const handleListenToggle = () => {
-      if (isNoiseMode) return;
-      startLiveSession('listen');
-  };
+    try {
+      if (!aiClientRef.current) {
+        const stored = localStorage.getItem('gemini_api_key');
+        if (stored) aiClientRef.current = new GoogleGenAI({ apiKey: stored });
+        else throw new Error("API Anahtarı eksik.");
+      }
 
-  const saveSession = () => {
-      const newSession: ArchivedSession = {
-          id: Date.now().toString(),
-          date: new Date().toISOString(),
-          targetLang: targetLang,
-          preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : "Boş Oturum",
-          messages: [...messages]
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false, // Disabled to prevent filtering out distant voices as noise
+          autoGainControl: true,
+          channelCount: 1
+        } 
+      });
+      mediaStreamRef.current = stream;
+      const audioCtx = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+      inputAudioContextRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      
+      // Sensitivity Boost: Add a GainNode to amplify low signals
+      const gainNode = audioCtx.createGain();
+      // Boost gain significantly in listen mode to catch distant sounds
+      gainNode.gain.value = isListen ? 2.5 : 1.5; 
+
+      // Dynamics Compressor: Helps normalize distant and near voices
+      const compressor = audioCtx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-50, audioCtx.currentTime);
+      compressor.knee.setValueAtTime(40, audioCtx.currentTime);
+      compressor.ratio.setValueAtTime(12, audioCtx.currentTime);
+      compressor.attack.setValueAtTime(0, audioCtx.currentTime);
+      compressor.release.setValueAtTime(0.25, audioCtx.currentTime);
+
+      const analyser = audioCtx.createAnalyser();
+      inputAnalyserRef.current = analyser;
+      const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+      scriptProcessorRef.current = scriptProcessor;
+      
+      scriptProcessor.onaudioprocess = (e) => {
+        if (isNoiseMode && !isHoldingMic) return;
+        const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
+        sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
+          media: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
+        }));
       };
-      const updatedSessions = [newSession, ...savedSessions];
-      setSavedSessions(updatedSessions);
-      localStorage.setItem('archivedSessions', JSON.stringify(updatedSessions));
-      setMessages([]);
-      setShowSaveModal(false);
-      stopConnection();
-  };
 
-  const discardSession = () => {
-      setMessages([]);
-      setShowSaveModal(false);
-      stopConnection();
+      // Audio Chain: Source -> Gain -> Compressor -> Analyser -> ScriptProcessor
+      source.connect(gainNode);
+      gainNode.connect(compressor);
+      compressor.connect(analyser);
+      analyser.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
+
+      const outCtx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+      outputAudioContextRef.current = outCtx;
+      const outAnalyser = outCtx.createAnalyser();
+      outputAnalyserRef.current = outAnalyser;
+      outAnalyser.connect(outCtx.destination);
+
+      const sessionPromise = aiClientRef.current.live.connect({
+        model: MODEL_NAME,
+        config: {
+          systemInstruction: isListen ? 
+            `Sen SADECE bir simultane tercümansın. GÖREVİN: ${getLangDetails(targetLang).name} dilinde duyduğun her şeyi ANINDA ve BİREBİR ${getLangDetails(sourceLang).name} diline çevirmek. 
+             KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
+             Eğer bir soru duyarsan, o soruyu cevaplamak yerine ${getLangDetails(sourceLang).name} diline çevir. 
+             Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.` : 
+            `Sen SADECE bir simultane tercümansın. GÖREVİN: ${getLangDetails(sourceLang).name} ve ${getLangDetails(targetLang).name} dilleri arasında ANINDA ve BİREBİR çeviri yapmak. 
+             KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
+             Eğer bir soru duyarsan, o soruyu cevaplamak yerine diğer dile çevir. 
+             Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.`,
+          responseModalities: [Modality.AUDIO],
+          inputAudioTranscription: {}, outputAudioTranscription: {},
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }
+        },
+        callbacks: {
+          onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
+          onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
+          onclose: stopConnection,
+          onerror: (e) => { console.error(e); setError("Bağlantı Hatası"); stopConnection(); }
+        }
+      });
+      sessionPromiseRef.current = sessionPromise;
+      sessionPromise.then(s => activeSessionRef.current = s);
+    } catch (e: any) { setError(e.message); stopConnection(); }
   };
 
   const handleServerMessage = (msg: LiveServerMessage, isListen: boolean) => {
     if (msg.serverContent?.inputTranscription) {
-       currentInputTranscription.current += msg.serverContent.inputTranscription.text;
-       setRealtimeInput(currentInputTranscription.current);
+      currentInputTranscription.current += msg.serverContent.inputTranscription.text;
+      setRealtimeInput(currentInputTranscription.current);
     }
-
     if (msg.serverContent?.outputTranscription) {
-        currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
-        
-        if (isListen) {
-          const rawText = currentOutputTranscription.current;
-          const splitMatch = rawText.match(/([.?!])\s+/);
-
-          if (splitMatch && splitMatch.index !== undefined) {
-             const splitIndex = splitMatch.index + 1; 
-             const sentence = rawText.substring(0, splitIndex).trim();
-             const remainder = rawText.substring(splitIndex).trim(); 
-
-             if (sentence.length > 0) {
-                 addMessage('model', sentence, sourceLang);
-                 currentOutputTranscription.current = remainder;
-             }
-          }
-          setRealtimeOutput(currentOutputTranscription.current);
-
-        } else {
-          setRealtimeOutput(currentOutputTranscription.current);
-        }
+      currentOutputTranscription.current += msg.serverContent.outputTranscription.text;
+      setRealtimeOutput(currentOutputTranscription.current);
     }
-
-    const audioData = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audioData && !isListen) {
-        playAudioResponse(audioData);
-    }
-
+    const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    if (audio && !isListen) playAudio(audio);
+    
     if (msg.serverContent?.turnComplete) {
-       const inputTx = currentInputTranscription.current.trim();
-       const outputTx = currentOutputTranscription.current.trim();
-       
-       if (inputTx || outputTx) {
-         if (isListen) {
-             if (outputTx) {
-                 addMessage('model', outputTx, sourceLang); 
-             }
-             setRealtimeInput(''); 
-         } else {
-             const detectedInputLang = detectLanguage(inputTx, sourceLang, targetLang);
-             const detectedOutputLang = detectedInputLang === sourceLang ? targetLang : sourceLang;
-             addMessage('user', inputTx || '...', detectedInputLang);
-             addMessage('model', outputTx || '...', detectedOutputLang);
-         }
-       }
-       
-       currentInputTranscription.current = '';
-       currentOutputTranscription.current = '';
-       setRealtimeOutput('');
-       
-       if (!isListen) setRealtimeInput('');
+      const input = currentInputTranscription.current.trim();
+      const output = currentOutputTranscription.current.trim();
+      if (input || output) {
+        setMessages(prev => [...prev, 
+          { id: Date.now().toString(), role: 'user', text: input || '...', timestamp: new Date(), isFinal: true },
+          { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListen ? sourceLang : targetLang }
+        ]);
+      }
+      currentInputTranscription.current = ''; currentOutputTranscription.current = '';
+      setRealtimeInput(''); setRealtimeOutput('');
     }
   };
 
-  const handleLanguageSelect = (newLang: TargetLanguage) => {
-      if (selectorType === 'source') {
-          if (newLang === targetLang) setTargetLang(sourceLang);
-          setSourceLang(newLang);
-      } else if (selectorType === 'target') {
-          if (newLang === sourceLang) setSourceLang(targetLang);
-          setTargetLang(newLang);
-      }
-      setSelectorType(null);
-      if (isConnected && !isOfflineActive) {
-          shouldReconnectRef.current = true;
-          stopConnection();
-      }
-  };
-
-  const handleVoiceChange = (type: 'female' | 'male') => {
-      setVoiceType(type);
-      localStorage.setItem('voiceType', type);
-      if (isConnected && !isOfflineActive) {
-          shouldReconnectRef.current = true;
-          stopConnection();
-      }
-  };
-
-  const toggleNoiseMode = () => {
-      const newValue = !isNoiseMode;
-      setIsNoiseMode(newValue);
-      localStorage.setItem('isNoiseMode', JSON.stringify(newValue));
-      if (isConnected) {
-          stopConnection(); 
-      }
-  };
-
-  useEffect(() => {
-      if (shouldReconnectRef.current) {
-          shouldReconnectRef.current = false;
-          handleMicToggle();
-      }
-  }, [sourceLang, targetLang, voiceType]);
-
-  const toggleOfflineDirection = () => {
-    if (!isOfflineActive) return;
-    if (isConnected) {
-        stopConnection();
-        setTimeout(() => {
-           setIsOfflineReverse(!isOfflineReverse);
-           handleMicToggle();
-        }, 200);
-    } else {
-        setIsOfflineReverse(!isOfflineReverse);
-    }
-  };
-
-  const startOfflineRecognition = () => {
-    if (!('webkitSpeechRecognition' in window)) {
-        setError("Tarayıcınız ses tanımayı desteklemiyor.");
-        return;
-    }
-    try {
-      const Recognition = (window as any).webkitSpeechRecognition;
-      const recognition = new Recognition();
-      const sourceDetails = getLangDetails(sourceLang);
-      const targetDetails = getLangDetails(targetLang);
-      const activeLocale = isOfflineReverse ? targetDetails.locale : sourceDetails.locale;
-      recognition.lang = activeLocale;
-      recognition.continuous = true; 
-      recognition.interimResults = true; 
-      recognition.onstart = () => setRealtimeInput('');
-      recognition.onresult = (event: any) => {
-        let interim = '';
-        let final = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) final += event.results[i][0].transcript;
-          else interim += event.results[i][0].transcript;
-        }
-        setRealtimeInput(final || interim);
-      };
-      recognition.onerror = (e: any) => console.log(e);
-      recognitionRef.current = recognition;
-      recognition.start();
-    } catch (e) {}
-  };
-
-  const stopOfflineRecognition = () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-  };
-
-  const playAudioResponse = async (base64Audio: string) => {
-    if (!outputAudioContextRef.current || !outputAnalyserRef.current) return;
+  const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
-    try {
-      const arrayBuffer = base64ToArrayBuffer(base64Audio);
-      const float32Data = pcm16ToFloat32(arrayBuffer);
-      const audioBuffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
-      audioBuffer.getChannelData(0).set(float32Data);
-      const source = ctx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(outputAnalyserRef.current);
-      source.start(Math.max(nextStartTimeRef.current, ctx.currentTime));
-      nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime) + audioBuffer.duration;
-      source.onended = () => sourcesRef.current.delete(source);
-      sourcesRef.current.add(source);
-    } catch (err) {}
+    if (!ctx) return;
+    const arrayBuffer = base64ToArrayBuffer(base64);
+    const float32Data = pcm16ToFloat32(arrayBuffer);
+    const buffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
+    buffer.getChannelData(0).set(float32Data);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(outputAnalyserRef.current!);
+    source.start(Math.max(nextStartTimeRef.current, ctx.currentTime));
+    nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime) + buffer.duration;
   };
 
-  const speakOffline = (text: string, locale: string) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text); 
-      utterance.lang = locale;
-      window.speechSynthesis.speak(utterance);
-    }
+  const saveSession = () => {
+    const newSession: ArchivedSession = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      targetLang: targetLang,
+      preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : "Boş Oturum",
+      messages: [...messages]
+    };
+    const updated = [newSession, ...savedSessions];
+    setSavedSessions(updated);
+    localStorage.setItem('archivedSessions', JSON.stringify(updated));
+    setShowSaveModal(false);
+    stopConnection();
   };
 
-  const addMessage = (role: 'user' | 'model', text: string, langCode?: TargetLanguage) => {
-    setMessages(prev => [...prev, { 
-      id: Date.now().toString() + Math.random(), 
-      role, 
-      text, 
-      timestamp: new Date(), 
-      isFinal: true,
-      langCode: langCode 
-    }]);
+  const deleteArchivedSession = (id: string) => {
+    const updated = savedSessions.filter(s => s.id !== id);
+    setSavedSessions(updated);
+    localStorage.setItem('archivedSessions', JSON.stringify(updated));
+    if (openedArchive?.id === id) setOpenedArchive(null);
   };
-
-  // --- SMART SCROLL HANDLING ---
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  
-  const handleScroll = () => {
-      if (!chatContainerRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
-      isUserScrolledUpRef.current = !isAtBottom;
-  };
-
-  useEffect(() => {
-    if (chatContainerRef.current) {
-        if (!isUserScrolledUpRef.current) {
-            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-        }
-    }
-  }, [messages, realtimeInput, realtimeOutput, viewMode]);
-
-  // ... (downloadPack & deletePack functions remain same)
-  const downloadPack = (id: string) => {
-    setOfflinePacks(prev => prev.map(p => p.id === id ? { ...p, progress: 5 } : p));
-    let progress = 5;
-    const interval = setInterval(() => {
-      progress += 10;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setOfflinePacks(prev => {
-          const newPacks = prev.map(p => p.id === id ? { ...p, progress: 100, downloaded: true } : p);
-          localStorage.setItem('offlinePacks', JSON.stringify(newPacks));
-          return newPacks;
-        });
-      } else {
-        setOfflinePacks(prev => prev.map(p => p.id === id ? { ...p, progress } : p));
-      }
-    }, 200);
-  };
-  
-  const deletePack = (id: string) => {
-     setOfflinePacks(prev => {
-       const newPacks = prev.map(p => p.id === id ? { ...p, progress: 0, downloaded: false } : p);
-       localStorage.setItem('offlinePacks', JSON.stringify(newPacks));
-       return newPacks;
-     });
-  };
-
-  const lastUserMsg = messages.slice().reverse().find(m => m.role === 'user');
-  const lastModelMsg = messages.slice().reverse().find(m => m.role === 'model');
 
   const sourceDetails = getLangDetails(sourceLang);
   const targetDetails = getLangDetails(targetLang);
 
-  const detectedRealtimeInputLang = detectLanguage(realtimeInput, sourceLang, targetLang);
-  const isInputTarget = detectedRealtimeInputLang === targetLang;
-
-  const deleteArchivedSession = (id: string) => {
-      const updated = savedSessions.filter(s => s.id !== id);
-      setSavedSessions(updated);
-      localStorage.setItem('archivedSessions', JSON.stringify(updated));
-      if (openedArchive?.id === id) setOpenedArchive(null);
-  };
-
   return (
-    <div className={`h-[100dvh] w-full flex flex-col font-sans relative overflow-hidden select-none transition-colors duration-500 ${isListenModeActive ? 'bg-orange-950 text-orange-50' : 'bg-slate-950 text-slate-100'}`}>
+    <div className={`h-[100dvh] w-full flex flex-col font-sans relative overflow-hidden bg-slate-950 text-slate-100 ${isListenModeActive ? 'bg-orange-950 text-orange-50' : ''}`}>
       
-      {/* Dynamic Background */}
+      {/* Background Blobs */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className={`absolute top-[-10%] left-[-20%] w-[150vw] h-[60vh] rounded-full blur-[80px] opacity-20 transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-600' : isOfflineActive ? 'bg-red-600' : isConnected ? 'bg-emerald-900' : 'bg-blue-900'}`}></div>
-        <div className="absolute bottom-[-10%] right-[-20%] w-[150vw] h-[50vh] bg-purple-900/10 rounded-full blur-[100px]"></div>
+        <div className={`absolute top-[-10%] left-[-20%] w-[150vw] h-[60vh] rounded-full blur-[80px] opacity-20 transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-600' : isConnected ? 'bg-emerald-900' : 'bg-blue-900'}`}></div>
       </div>
 
-      {/* API KEY MODAL (If no key is present) */}
-      {!apiKey && (
-          <div className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-6 animate-fade-in">
-             <div className="w-full max-w-sm">
-                <div className="flex justify-center mb-8">
-                    <div className="w-20 h-20 bg-blue-500/10 rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-500/20">
-                        <Key size={40} className="text-blue-400" />
-                    </div>
-                </div>
-                <h1 className="text-2xl font-bold text-center text-white mb-2">Hoş Geldiniz</h1>
-                <p className="text-slate-400 text-center mb-8">Uygulamayı kullanmak için lütfen Google Gemini API anahtarınızı giriniz.</p>
-                
-                <div className="space-y-4">
-                    <div className="relative">
-                        <div className="absolute left-4 top-3.5 text-slate-500">
-                            <Key size={18} />
-                        </div>
-                        <input 
-                           type="password"
-                           value={tempApiKeyInput}
-                           onChange={(e) => setTempApiKeyInput(e.target.value)}
-                           placeholder="API Anahtarınızı yapıştırın"
-                           className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3.5 pl-12 pr-4 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-600"
-                        />
-                    </div>
-                    
-                    <button 
-                        onClick={handleSaveApiKey}
-                        disabled={!tempApiKeyInput.trim()}
-                        className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-blue-900/30 transition-all active:scale-[0.98]"
-                    >
-                        Giriş Yap
-                    </button>
-
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-sm text-slate-500 hover:text-blue-400 transition-colors mt-4">
-                        Anahtarım yok, hemen oluştur <ExternalLink size={14} />
-                    </a>
-                </div>
-             </div>
-          </div>
-      )}
-
-      {/* Header */}
-      <header className="z-20 h-16 flex items-center justify-between px-5 bg-gradient-to-b from-black/80 to-transparent backdrop-blur-sm sticky top-0 pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-2.5">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-gradient-to-br shadow-lg transition-colors duration-500 ${isListenModeActive ? 'from-orange-500 to-amber-600' : isOfflineActive ? 'from-orange-500 to-red-600' : 'from-emerald-500 to-teal-600'}`}>
-            {isListenModeActive ? <Ear size={16} className="text-white" /> : <Sparkles size={16} className="text-white" />}
+      {/* HEADER */}
+      <header className="z-20 h-16 flex items-center justify-between px-5 backdrop-blur-md bg-black/40 pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center gap-3">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${isListenModeActive ? 'bg-orange-500' : 'bg-blue-600'}`}>
+            {isListenModeActive ? <Ear size={18} /> : <Languages size={18} />}
           </div>
           <div className="flex flex-col">
-              <span className={`font-bold text-lg tracking-tight leading-none ${isListenModeActive ? 'text-orange-100' : ''}`}>
-                 {viewMode === 'archive' ? 'Arşiv' : isListenModeActive ? 'Dinleme Modu' : 'Hizmet Dili'}
-              </span>
-              <span className={`text-[9px] font-medium tracking-wide mt-0.5 ${isListenModeActive ? 'text-orange-300' : 'text-slate-400'}`}>
-                 {viewMode === 'archive' ? 'Kayıtlı Oturumlar' : isListenModeActive ? `${targetDetails.name} Dinleniyor...` : isNoiseMode ? 'Bas-Konuş Modu Aktif' : 'Developer by Ali Tellioğlu'}
-              </span>
+            <span className="font-bold text-lg leading-none">Ai Live Translate</span>
+            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? 'Dinleme Modu' : 'Developed by Ali TELLIOGLU'}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-           {!isListenModeActive && viewMode !== 'archive' && (
-             <button 
-               onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')}
-               className={`p-2 rounded-full transition-colors active:scale-95 ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800/50 text-slate-400 hover:bg-slate-800'}`}
-             >
-               {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
-             </button>
-           )}
-
-           {viewMode === 'archive' ? (
-                <button onClick={() => setViewMode('chat')} className="p-2 rounded-full bg-slate-800 text-slate-300 hover:bg-slate-700">
-                    <X size={20} />
-                </button>
-           ) : (
-             <>
-               <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${isListenModeActive ? 'bg-orange-500/10 border-orange-500/20 text-orange-400' : isOfflineActive ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'}`}>
-                {isOfflineActive ? 'OFFLINE' : 'ONLINE'}
-               </div>
-               
-               <button onClick={() => setShowSettings(true)} className={`p-2 rounded-full transition-colors active:scale-95 ${isListenModeActive ? 'bg-orange-800/50 hover:bg-orange-800 text-orange-300' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'}`}>
-                <Settings size={20} />
-              </button>
-             </>
-           )}
+          <button 
+            onClick={() => {
+              setIsKeyboardVisible(!isKeyboardVisible);
+              triggerHaptic();
+            }} 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${isKeyboardVisible ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            title="Klavye Girişi"
+          >
+            <Keyboard size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Yaz</span>
+          </button>
+          {!isListenModeActive && viewMode !== 'archive' && (
+            <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+              {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
+            </button>
+          )}
+          <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white">
+            <Settings size={20} />
+          </button>
         </div>
       </header>
-      
-      {/* Direction Indicator (Only in Chat Mode) */}
-      {viewMode === 'chat' && !isListenModeActive && (
-      <div className="absolute top-16 left-0 right-0 z-10 flex justify-center mt-2 animate-fade-in-down pointer-events-auto">
-          <button 
-             onClick={toggleOfflineDirection}
-             disabled={!isOfflineActive} 
-             className={`bg-slate-800/80 backdrop-blur-md px-4 py-2 rounded-full border border-slate-700 flex items-center gap-3 text-xs font-medium text-slate-300 shadow-xl transition-all active:scale-95 ${isOfflineActive ? 'hover:bg-slate-700 cursor-pointer' : 'cursor-default'}`}
-          >
-              <div className="flex items-center gap-1.5">
-                  <span className="text-lg">{sourceDetails.flag}</span>
-                  <span className={isOfflineReverse ? "opacity-50" : "font-bold text-white"}>{sourceDetails.name}</span>
-              </div>
-              <ArrowRightLeft size={14} className={`text-blue-400 transition-transform duration-300 ${isOfflineReverse ? 'rotate-180' : ''}`} />
-              <div className="flex items-center gap-1.5">
-                  <span className={isOfflineReverse ? "font-bold text-white" : "opacity-50"}>{targetDetails.name}</span>
-                  <span className="text-lg">{targetDetails.flag}</span>
-              </div>
-          </button>
-      </div>
-      )}
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col z-10 relative overflow-hidden">
-        
-        {/* --- VIEW MODE: LISTEN (TRANSCRIPTION FEED) --- */}
-        {viewMode === 'listen' ? (
-            <div 
-               ref={chatContainerRef} 
-               onScroll={handleScroll}
-               className="flex-1 overflow-y-auto px-6 pt-10 pb-20 scroll-smooth no-scrollbar"
-            >
-                {/* Realtime Input (Original Language Preview) */}
-                {realtimeInput && (
-                    <div className="mb-8 opacity-50 transition-opacity">
-                        <span className="text-xs text-orange-300/70 font-bold uppercase tracking-widest mb-2 block flex items-center gap-2">
-                             <Ear size={12} className="animate-pulse"/> Algılanıyor ({targetDetails.short})
-                        </span>
-                        <p className="text-2xl text-orange-100/50 font-light leading-relaxed italic">
-                            {realtimeInput}...
-                        </p>
+      {/* MAIN CONTENT */}
+      <main className="flex-1 overflow-hidden relative flex flex-col z-10">
+        {viewMode === 'archive' ? (
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+            {openedArchive ? (
+              <div className="space-y-4 animate-fade-in">
+                <button onClick={() => setOpenedArchive(null)} className="text-blue-400 text-sm flex items-center gap-1 mb-2"><ChevronRight className="rotate-180" size={16}/> Arşive Dön</button>
+                <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+                   <div>
+                     <h3 className="font-bold text-lg">{new Date(openedArchive.date).toLocaleDateString()}</h3>
+                     <p className="text-xs text-slate-500">{getLangDetails(openedArchive.targetLang).name} Tercümesi</p>
+                   </div>
+                   <button onClick={() => deleteArchivedSession(openedArchive.id)} className="p-3 bg-red-500/10 text-red-400 rounded-xl"><Trash2 size={20}/></button>
+                </div>
+                {openedArchive.messages.map((m, i) => (
+                  <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-start' : 'items-end'}`}>
+                    <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-slate-800/80 text-slate-300' : 'bg-blue-600 text-white'}`}>
+                      <p className="text-[15px] leading-relaxed">{m.text}</p>
                     </div>
-                )}
-
-                {/* Transcriptions */}
-                {messages.filter(m => m.role === 'model').map((msg) => (
-                    <div key={msg.id} className="mb-8 animate-fade-in-up">
-                        <span className="text-xs text-orange-400 font-bold uppercase tracking-widest mb-1 block flex items-center gap-2">
-                             {sourceDetails.flag} Çeviri
-                        </span>
-                        <p className="text-2xl md:text-3xl font-medium text-white leading-relaxed drop-shadow-sm">
-                            {msg.text}
-                        </p>
-                    </div>
+                  </div>
                 ))}
-                
-                 {/* Realtime Output (Draft Translation) */}
-                 {realtimeOutput && (
-                    <div className="mb-4">
-                        <p className="text-2xl md:text-3xl font-medium text-orange-200 leading-relaxed blur-[1px]">
-                            {realtimeOutput}
-                        </p>
-                    </div>
-                 )}
-
-                <div className="h-32"></div> {/* Spacer */}
-            </div>
-        ) : viewMode === 'archive' ? (
-            /* --- VIEW MODE: ARCHIVE --- */
-            <div className="flex-1 overflow-y-auto px-4 pt-4 pb-20">
-                {openedArchive ? (
-                     <div className="space-y-4 animate-fade-in">
-                        <button onClick={() => setOpenedArchive(null)} className="flex items-center gap-2 text-slate-400 text-sm mb-4">
-                            <ChevronRight className="rotate-180" size={16} /> Geri Dön
-                        </button>
-                        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 mb-4">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                                        <Calendar size={16} className="text-blue-400" />
-                                        {new Date(openedArchive.date).toLocaleString('tr-TR')}
-                                    </h3>
-                                    <span className="text-slate-500 text-xs mt-1 block">
-                                        Hedef Dil: {getLangDetails(openedArchive.targetLang).name} {getLangDetails(openedArchive.targetLang).flag}
-                                    </span>
-                                </div>
-                                <button onClick={() => deleteArchivedSession(openedArchive.id)} className="p-2 bg-red-500/10 text-red-400 rounded-lg">
-                                    <Trash2 size={16} />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="space-y-6">
-                            {openedArchive.messages.map((msg, i) => (
-                                <div key={i} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
-                                    <p className="text-lg text-slate-200 leading-relaxed">{msg.text}</p>
-                                </div>
-                            ))}
-                        </div>
-                     </div>
-                ) : (
-                    <div className="space-y-3">
-                        {savedSessions.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-64 text-slate-500 opacity-50">
-                                <FolderOpen size={48} />
-                                <p className="mt-4 text-sm">Henüz kaydedilmiş bir oturum yok.</p>
-                            </div>
-                        ) : (
-                            savedSessions.map(session => (
-                                <button 
-                                   key={session.id} 
-                                   onClick={() => setOpenedArchive(session)}
-                                   className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-colors group"
-                                >
-                                    <div className="flex items-start gap-3 text-left">
-                                        <div className="p-3 bg-blue-600/20 text-blue-400 rounded-lg">
-                                            <FileText size={20} />
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold text-slate-200 text-sm">
-                                                {new Date(session.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute:'2-digit' })}
-                                            </div>
-                                            <div className="text-xs text-slate-500 mt-1 line-clamp-1">
-                                                {session.preview}
-                                            </div>
-                                            <div className="mt-1.5 flex gap-2">
-                                                <span className="text-[10px] bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">
-                                                    {getLangDetails(session.targetLang).short}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="text-slate-600 group-hover:text-white transition-colors" size={20} />
-                                </button>
-                            ))
-                        )}
-                    </div>
-                )}
-            </div>
-        ) : viewMode === 'split' ? (
-             /* --- VIEW MODE: SPLIT --- */
-             <div className="flex-1 flex flex-col items-stretch h-full pb-[calc(8rem+env(safe-area-inset-bottom))]">
-                <div className="flex-1 bg-slate-900/50 border-b border-slate-800 p-6 flex flex-col justify-center items-center relative rotate-180">
-                     <div className="absolute top-4 left-4 flex items-center gap-2 opacity-50">
-                        <span className="text-2xl">{targetDetails.flag}</span>
-                        <span className="text-sm font-bold">{targetDetails.name}</span>
-                     </div>
-                     <div className="text-center">
-                         <div className="text-3xl font-bold text-emerald-300 leading-snug">
-                            {isInputTarget ? realtimeInput : (realtimeOutput || lastModelMsg?.text || "...")}
-                         </div>
-                     </div>
-                </div>
-                <div className="flex-1 bg-slate-950/50 p-6 flex flex-col justify-center items-center relative">
-                     <div className="absolute top-4 left-4 flex items-center gap-2 opacity-50">
-                        <span className="text-2xl">{sourceDetails.flag}</span>
-                        <span className="text-sm font-bold">{sourceDetails.name}</span>
-                     </div>
-                     <div className="text-center">
-                         <div className="text-3xl font-bold text-slate-100 leading-snug">
-                            {!isInputTarget ? realtimeInput : (realtimeOutput || lastUserMsg?.text || "...")}
-                         </div>
-                     </div>
-                </div>
-             </div>
-        ) : (
-        /* --- VIEW MODE: CHAT (STANDARD) --- */
-        <div ref={chatContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 pt-10 pb-6 space-y-6 scroll-smooth no-scrollbar">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-200 p-3 rounded-xl text-sm flex justify-between items-center mx-2">
-              <span>{error}</span>
-              <button onClick={() => setError(null)}><X size={16} /></button>
-            </div>
-          )}
-
-          {messages.length === 0 && !realtimeInput && (
-             <div className="h-full flex flex-col items-center justify-center text-slate-500 opacity-40 space-y-4">
-                <Globe size={64} strokeWidth={1} />
-                <p className="text-center text-sm px-10">
-                   {isNoiseMode ? 'Bas-konuş modu aktif. Konuşmak için butona basılı tutun.' : 'Konuşmaya başlamak için mikrofonu kullanın.'}
-                </p>
-             </div>
-          )}
-          
-          {messages.map((msg) => {
-             const msgLangDetails = getLangDetails(msg.langCode);
-             return (
-            <div 
-              key={msg.id} 
-              onClick={() => setFocusedMessage(msg)}
-              className={`flex flex-col cursor-pointer active:scale-[0.98] transition-transform ${msg.role === 'user' ? 'items-start' : 'items-end'}`}
-            >
-              <span className="text-[10px] text-slate-400 mb-1 px-1 flex items-center gap-1.5">
-                  {msg.role === 'user' ? (
-                      <> <Mic size={10} /> <span>Konuşmacı</span> </>
-                  ) : (
-                      <> 
-                        {/* Use Ear icon if it was a listen mode message (implied by context usually, simplified here) */}
-                        <Sparkles size={10} /> <span>Çevirmen</span> 
-                      </>
-                  )}
-              </span>
-              <div className={`max-w-[85%] px-4 py-3 shadow-sm text-[15px] leading-relaxed relative group ${
-                msg.role === 'user' 
-                  ? 'bg-slate-800 text-slate-200 rounded-2xl rounded-tl-sm' 
-                  : isOfflineActive 
-                    ? 'bg-orange-600 text-white rounded-2xl rounded-tr-sm'
-                    : 'bg-emerald-600 text-white rounded-2xl rounded-tr-sm'
-              }`}>
-                <div className="flex gap-3">
-                    <span className="text-2xl shrink-0 leading-none pt-0.5 filter drop-shadow-md select-none">{msgLangDetails.flag}</span>
-                    <span className="break-words">{msg.text}</span>
-                </div>
-                <div className="absolute right-2 bottom-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Maximize2 size={12} className="text-white/50" />
-                </div>
-              </div>
-            </div>
-          )})}
-
-          {/* Real-time Bubbles (Chat Mode) */}
-          {(realtimeInput || realtimeOutput) && (
-             <div className="space-y-4">
-                {realtimeInput && (
-                  <div className="flex flex-col items-start opacity-70">
-                     <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse flex items-center gap-1"><Mic size={10}/> 
-                     {/* Heuristic display */}
-                     {getLangDetails(detectedRealtimeInputLang).short}...
-                     </span>
-                     <div className="max-w-[85%] px-5 py-3 bg-slate-800/50 border border-slate-700 border-dashed text-slate-300 rounded-2xl rounded-tl-sm">
-                       {realtimeInput}
-                     </div>
-                  </div>
-                )}
-                {realtimeOutput && (
-                  <div className="flex flex-col items-end opacity-70">
-                     <span className="text-[10px] text-emerald-400 mb-1 px-1 animate-pulse flex items-center gap-1"><Sparkles size={10}/> ÇEVİRİYOR...</span>
-                     <div className="max-w-[85%] px-5 py-3 bg-emerald-900/30 border border-emerald-500/30 border-dashed text-emerald-200 rounded-2xl rounded-tr-sm">
-                       {realtimeOutput}
-                     </div>
-                  </div>
-                )}
-             </div>
-          )}
-        </div>
-        )}
-
-        {/* BOTTOM DOCK (Controls) */}
-        <div className={`backdrop-blur-xl border-t px-6 pt-4 z-30 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] absolute bottom-0 w-full transition-colors duration-500 ${isListenModeActive ? 'bg-orange-950/80 border-orange-900/50' : 'bg-slate-950/80 border-slate-800/50'}`}>
-          
-          {/* Visualizer Bar (Above Dock) */}
-          <div className="h-10 w-full flex items-center justify-center mb-4">
-            {isConnected ? (
-              <div className="w-full h-full opacity-80">
-                 <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isListenModeActive ? '#fb923c' : isOfflineActive ? '#f97316' : '#4ade80'} />
               </div>
             ) : (
-              <div className="h-1 w-16 bg-slate-800 rounded-full"></div>
+              <div className="space-y-3">
+                <h2 className="text-xl font-bold px-1 mb-4 flex items-center gap-2"><FolderOpen size={20} className="text-blue-400"/> Kayıtlı Oturumlar</h2>
+                {savedSessions.length === 0 ? (
+                  <div className="py-20 text-center opacity-30 flex flex-col items-center"><ScrollText size={48} /><p className="mt-4">Henüz kayıt yok</p></div>
+                ) : (
+                  savedSessions.map(s => (
+                    <div key={s.id} onClick={() => setOpenedArchive(s)} className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-slate-600 transition-all group">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-bold text-slate-200">{new Date(s.date).toLocaleDateString()}</h4>
+                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded uppercase tracking-widest text-slate-500">{getLangDetails(s.targetLang).short}</span>
+                      </div>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{s.preview}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
+        ) : viewMode === 'listen' ? (
+          <div className="flex-1 overflow-y-auto px-6 py-10 space-y-10 no-scrollbar">
+             {realtimeInput && (
+               <div className="opacity-40 animate-pulse">
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 block mb-2">Dinleniyor ({targetDetails.short})</span>
+                 <p className="text-2xl italic leading-relaxed">{realtimeInput}...</p>
+               </div>
+             )}
+             {messages.filter(m => m.role === 'model').map(m => (
+               <div key={m.id} className="animate-fade-in-up">
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çeviri ({sourceDetails.short})</span>
+                 <p className="text-4xl font-bold leading-tight drop-shadow-sm">{m.text}</p>
+               </div>
+             ))}
+             {realtimeOutput && (
+               <div className="animate-fade-in">
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çevriliyor...</span>
+                 <p className="text-4xl font-bold text-orange-200 leading-tight">{realtimeOutput}</p>
+               </div>
+             )}
+             <div className="h-40"></div>
+          </div>
+        ) : viewMode === 'split' ? (
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1 bg-slate-900/50 flex items-center justify-center p-10 rotate-180 border-b border-white/5">
+               <div className="text-center space-y-4">
+                 <span className="text-sm font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
+                 <p className="text-4xl font-bold text-emerald-400 leading-tight">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
+               </div>
+            </div>
+            <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-10">
+               <div className="text-center space-y-4">
+                 <span className="text-sm font-bold text-blue-500/50 uppercase tracking-[0.3em]">{sourceDetails.name}</span>
+                 <p className="text-4xl font-bold text-white leading-tight">{realtimeInput || messages.filter(m => m.role === 'user').pop()?.text || '...'}</p>
+               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto px-5 py-8 space-y-8 no-scrollbar pb-32">
+            {messages.length === 0 && !realtimeInput && (
+              <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4 py-20">
+                <Globe size={80} />
+                <p className="text-center font-bold">KONUŞMAYA BAŞLA</p>
+              </div>
+            )}
+            {messages.map(m => (
+              <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-start' : 'items-end'}`}>
+                <span className="text-[10px] text-slate-500 mb-1 px-1">{m.role === 'user' ? 'Siz' : 'Tercüman'}</span>
+                <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-slate-800/80 text-slate-200 rounded-tl-sm' : 'bg-emerald-600 text-white rounded-tr-sm'}`}>
+                  <p className="text-[15px] leading-relaxed">{m.text}</p>
+                </div>
+              </div>
+            ))}
+            {realtimeInput && (
+              <div className="flex flex-col items-start opacity-60">
+                <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse">ALGILANIYOR...</span>
+                <div className="max-w-[85%] p-4 bg-slate-800/30 rounded-2xl rounded-tl-sm border border-slate-700 border-dashed text-slate-300">
+                  {realtimeInput}
+                </div>
+              </div>
+            )}
+            {realtimeOutput && (
+              <div className="flex flex-col items-end opacity-60">
+                <span className="text-[10px] text-emerald-400 mb-1 px-1 animate-pulse">ÇEVRİLİYOR...</span>
+                <div className="max-w-[85%] p-4 bg-emerald-900/20 rounded-2xl rounded-tr-sm border border-emerald-500/30 border-dashed text-emerald-200">
+                  {realtimeOutput}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-          <div className="flex items-center justify-between max-w-sm mx-auto">
+        {/* CONTROLS */}
+        <div className={`absolute bottom-0 w-full p-6 backdrop-blur-2xl border-t border-white/5 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-950/90' : 'bg-slate-950/90'}`}>
+          <div className="h-8 w-full flex items-center justify-center mb-6">
+            {isConnected && <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isListenModeActive ? '#f97316' : '#10b981'} />}
+          </div>
+          
+          {/* TEXT INPUT TRANSLATION */}
+          {isKeyboardVisible && !isListenModeActive && viewMode !== 'split' && (
+            <div className="max-w-md mx-auto mb-6 px-4 animate-in slide-in-from-bottom-4 duration-300">
+              <div className="relative flex items-center group">
+                <input 
+                  type="text"
+                  value={textInput}
+                  onChange={e => setTextInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleTextSubmit()}
+                  placeholder={`${sourceDetails.name} dilinde yazın...`}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 outline-none transition-all shadow-xl"
+                />
+                <button 
+                  onClick={handleTextSubmit}
+                  disabled={!textInput.trim() || isTextTranslating}
+                  className={`absolute right-2 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${textInput.trim() && !isTextTranslating ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400/30'}`}
+                >
+                  {isTextTranslating ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="max-w-md mx-auto flex items-center justify-between gap-4">
+            <button 
+              onClick={() => !isConnected && setShowLangSelector('source')}
+              className={`w-16 h-16 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-3xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {sourceDetails.flag}
+            </button>
             
-            {/* Left: Source Language Selector */}
-            <div className="w-20 flex flex-col items-center gap-1">
-               <button 
-                 onClick={() => setSelectorType('source')}
-                 // Disable source selection in Listen Mode (Always Turkish output)
-                 disabled={isListenModeActive} 
-                 className={`w-full h-14 border rounded-2xl flex items-center justify-center transition-all active:scale-95 touch-manipulation relative overflow-hidden group ${isListenModeActive ? 'bg-orange-900/40 border-orange-800/50 opacity-80' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
-               >
-                  <span className="text-3xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{sourceDetails.flag}</span>
-               </button>
-               <span className={`text-[9px] font-medium ${isListenModeActive ? 'text-orange-400' : 'text-slate-500'}`}>Kaynak</span>
+            <div className="flex gap-4 items-end -mt-8">
+              <div className="relative group">
+                {isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-orange-500/40"></div>}
+                <button 
+                  onMouseDown={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onClick={() => !isNoiseMode && startLiveSession('listen')} 
+                  className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                >
+                  {isConnecting && isListenModeActive ? <Loader2 size={24} className="animate-spin" /> : <Ear size={24} />}
+                </button>
+              </div>
+
+              <div className="relative">
+                {isConnected && !isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/40"></div>}
+                <button 
+                  onMouseDown={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onClick={() => !isNoiseMode && startLiveSession('bidirectional')} 
+                  className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
+                >
+                  {isConnecting && !isListenModeActive ? <Loader2 size={32} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={28} fill="currentColor" /> : <Mic size={36} />}
+                </button>
+              </div>
             </div>
 
-            {/* Center Controls (Two Buttons) */}
-            <div className="relative -mt-6 flex gap-4 items-end">
-                
-                {/* 1. LISTEN BUTTON (DINLE) */}
-                <div className="relative group">
-                    {/* Orange Halo for Listen Mode */}
-                    {isListenModeActive && (
-                        <>
-                          <div className="absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] bg-orange-500/50"></div>
-                          <div className="absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms] bg-orange-500/30"></div>
-                        </>
-                    )}
-                    <button
-                        // Noise Mode Handling for Listen Button
-                        onMouseDown={isNoiseMode ? () => handlePTTStart('listen') : undefined}
-                        onMouseUp={isNoiseMode ? handlePTTEnd : undefined}
-                        onTouchStart={isNoiseMode ? (e) => { e.preventDefault(); handlePTTStart('listen'); } : undefined}
-                        onTouchEnd={isNoiseMode ? (e) => { e.preventDefault(); handlePTTEnd(); } : undefined}
-                        onClick={!isNoiseMode ? handleListenToggle : undefined}
-
-                        className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 transform active:scale-95 z-10 border-2 select-none ${
-                            isListenModeActive 
-                            ? isNoiseMode && isHoldingMic 
-                                ? 'bg-orange-500 text-white border-orange-300 scale-110 shadow-[0_0_20px_rgba(251,146,60,0.6)]' // Holding visual
-                                : 'bg-orange-600 text-white border-orange-400 scale-110' 
-                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
-                        }`}
-                    >
-                        {isListenModeActive && isConnecting ? <Loader2 size={24} className="animate-spin" /> : <Ear size={24} />}
-                    </button>
-                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-wide">
-                        {isNoiseMode ? 'Bas-Tut' : 'Dinle'}
-                    </span>
-                </div>
-
-                {/* 2. MAIN CHAT BUTTON */}
-                <div className="relative group">
-                    {/* Green/Red Halo for Chat Mode */}
-                    {isConnected && !isListenModeActive && (
-                        <>
-                          <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite] ${isOfflineActive ? 'bg-red-500/40' : 'bg-emerald-500/40'}`}></div>
-                          <div className={`absolute inset-0 rounded-full animate-[ping_2s_cubic-bezier(0,0,0.2,1)_infinite_200ms] ${isOfflineActive ? 'bg-red-500/30' : 'bg-emerald-500/30'}`}></div>
-                        </>
-                    )}
-                    <button
-                        // Noise Mode Handling for Chat Button
-                        onMouseDown={isNoiseMode ? () => handlePTTStart('bidirectional') : undefined}
-                        onMouseUp={isNoiseMode ? handlePTTEnd : undefined}
-                        onTouchStart={isNoiseMode ? (e) => { e.preventDefault(); handlePTTStart('bidirectional'); } : undefined}
-                        onTouchEnd={isNoiseMode ? (e) => { e.preventDefault(); handlePTTEnd(); } : undefined}
-                        onClick={!isNoiseMode ? handleMicToggle : undefined}
-                        
-                        className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 select-none ${
-                          isConnecting && !isListenModeActive
-                            ? 'bg-slate-800 border-4 border-slate-700 cursor-wait'
-                            : isConnected && !isListenModeActive
-                              ? isOfflineActive 
-                                ? 'bg-red-600 text-white shadow-red-600/40 ring-4 ring-red-900/50 scale-105' 
-                                : isNoiseMode && isHoldingMic
-                                    ? 'bg-emerald-500 text-white shadow-[0_0_30px_rgba(16,185,129,0.8)] ring-4 ring-emerald-300 scale-110' // Holding visual
-                                    : 'bg-emerald-600 text-white shadow-emerald-600/40 ring-4 ring-emerald-900/50 scale-105'
-                              : 'bg-slate-100 text-slate-900 hover:bg-white border-4 border-slate-300 shadow-white/10'
-                        }`}
-                    >
-                        {isConnecting && !isListenModeActive ? (
-                           <Loader2 size={28} className="animate-spin text-slate-400" />
-                        ) : isConnected && !isListenModeActive ? (
-                           // Icon change based on hold state in noise mode
-                           isNoiseMode && isHoldingMic ? <Waves size={28} className="animate-pulse" /> : <Square size={24} fill="currentColor" className="rounded-sm" />
-                        ) : (
-                           // Icon change based on mode
-                           isNoiseMode ? <Mic size={28} strokeWidth={2.5} className="text-slate-900" /> : <Mic size={28} strokeWidth={2.5} />
-                        )}
-                    </button>
-                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-bold text-slate-500 uppercase tracking-wide">
-                        {isNoiseMode ? 'Bas-Konuş' : 'Sohbet'}
-                    </span>
-                </div>
-
-            </div>
-
-            {/* Right: Target Language Selector */}
-            <div className="w-20 flex flex-col items-center gap-1">
-               <button 
-                 onClick={() => setSelectorType('target')}
-                 className={`w-full h-14 border rounded-2xl flex items-center justify-center transition-all active:scale-95 touch-manipulation relative overflow-hidden group ${isListenModeActive ? 'bg-orange-900/40 border-orange-800/50 text-orange-200' : 'bg-slate-800 border-slate-700 text-slate-200 hover:border-slate-500'}`}
-               >
-                  <span className="text-3xl filter drop-shadow-md z-10 transition-transform group-active:scale-90">{targetDetails.flag}</span>
-               </button>
-               <span className={`text-[9px] font-medium ${isListenModeActive ? 'text-orange-400' : 'text-slate-500'}`}>Hedef</span>
-            </div>
-
+            <button 
+              onClick={() => !isConnected && setShowLangSelector('target')}
+              className={`w-16 h-16 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-3xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              {targetDetails.flag}
+            </button>
           </div>
         </div>
-
       </main>
 
-      {/* SAVE SESSION MODAL */}
+      {/* LANGUAGE SELECTOR MODAL */}
+      {showLangSelector && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-bold">{showLangSelector === 'source' ? 'Kaynak Dil' : 'Hedef Dil'}</h3>
+              <button onClick={() => setShowLangSelector(null)} className="p-2 bg-slate-800 rounded-full"><X size={18} /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
+              {LANGUAGE_META.map((lang) => (
+                <button
+                  key={lang.code}
+                  onClick={() => {
+                    if (showLangSelector === 'source') setSourceLang(lang.code);
+                    else setTargetLang(lang.code);
+                    setShowLangSelector(null);
+                    triggerHaptic();
+                  }}
+                  className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                    (showLangSelector === 'source' ? sourceLang : targetLang) === lang.code
+                      ? 'bg-blue-600 border-blue-500 text-white'
+                      : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                  }`}
+                >
+                  <span className="text-2xl">{lang.flag}</span>
+                  <span className="font-medium text-sm">{lang.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAVE MODAL */}
       {showSaveModal && (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
-              <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-2xl shadow-2xl p-6">
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mb-4 text-blue-400 mx-auto">
-                      <Save size={24} />
-                  </div>
-                  <h3 className="text-xl font-bold text-white text-center mb-2">Oturumu Kaydet?</h3>
-                  <p className="text-slate-400 text-center text-sm mb-6">
-                      Dinleme modunu kapatıyorsunuz. Bu oturumdaki çevirileri daha sonra incelemek için arşive kaydetmek ister misiniz?
-                  </p>
-                  <div className="flex gap-3">
-                      <button 
-                        onClick={discardSession}
-                        className="flex-1 py-3 rounded-xl bg-slate-800 text-slate-300 font-medium hover:bg-slate-700"
-                      >
-                          Sil
-                      </button>
-                      <button 
-                        onClick={saveSession}
-                        className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 shadow-lg shadow-blue-900/20"
-                      >
-                          Kaydet
-                      </button>
+              <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-8 text-center">
+                  <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mb-6 mx-auto"><Save size={32} /></div>
+                  <h3 className="text-2xl font-bold mb-2">Oturumu Kaydet?</h3>
+                  <p className="text-slate-500 text-sm mb-8 leading-relaxed">Bu görüşmedeki çevirileri daha sonra incelemek için arşive eklemek ister misiniz?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => { setMessages([]); setShowSaveModal(false); stopConnection(); }} className="py-4 rounded-2xl bg-slate-800 font-bold">Sil</button>
+                      <button onClick={saveSession} className="py-4 rounded-2xl bg-blue-600 font-bold">Kaydet</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* FULLSCREEN FOCUSED MESSAGE MODAL */}
-      {focusedMessage && (
-          <div 
-             className="fixed inset-0 z-50 bg-black/95 backdrop-blur-xl flex flex-col items-center justify-center p-8 animate-fade-in"
-             onClick={() => setFocusedMessage(null)}
-          >
-              <button className="absolute top-6 right-6 p-4 rounded-full bg-slate-800 text-white hover:bg-slate-700">
-                  <Minimize2 size={24} />
+      {/* API KEY MODAL */}
+      {!Object.values(apiKeys).some(k => !!k) && (
+        <div className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-8 animate-fade-in">
+           <div className="w-full max-w-sm text-center">
+              <div className="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl"><Key size={40} className="text-blue-500" /></div>
+              <h1 className="text-3xl font-bold mb-2">Hoş Geldiniz</h1>
+              <p className="text-slate-500 mb-8 text-sm">Devam etmek için bir yapay zeka sağlayıcısı seçin ve API anahtarınızı girin.</p>
+              
+              <div className="flex gap-2 mb-6">
+                {Object.values(AIProvider).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setTempProviderInput(p)}
+                    className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border ${tempProviderInput === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/20' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative mb-6">
+                <input 
+                  type="password" 
+                  value={tempApiKeyInput} 
+                  onChange={e => setTempApiKeyInput(e.target.value)} 
+                  placeholder={`${tempProviderInput} API Anahtarı`} 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white focus:ring-2 focus:ring-blue-600 outline-none transition-all" 
+                />
+              </div>
+
+              <button 
+                onClick={() => { 
+                  if(tempApiKeyInput.trim()) { 
+                    const newKeys = { ...apiKeys, [tempProviderInput.toLowerCase()]: tempApiKeyInput.trim() };
+                    localStorage.setItem('ai_api_keys', JSON.stringify(newKeys));
+                    localStorage.setItem('selected_provider', tempProviderInput);
+                    window.location.reload(); 
+                  } 
+                }} 
+                className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all"
+              >
+                Uygulamayı Başlat
               </button>
               
-              <div className="text-center space-y-6">
-                  <div className="text-6xl animate-bounce">
-                    {getLangDetails(focusedMessage.langCode).flag}
-                  </div>
-                  <p className={`text-4xl font-bold leading-tight ${
-                      focusedMessage.role === 'model' 
-                      ? isListenModeActive ? 'text-orange-400' : 'text-emerald-400' 
-                      : 'text-white'
-                  }`}>
-                      {focusedMessage.text}
-                  </p>
-                  <p className="text-slate-500 text-lg uppercase tracking-widest mt-4">
-                      {focusedMessage.role === 'user' ? 'Konuşmacı' : 'Çeviri'}
-                  </p>
+              <div className="mt-8 space-y-2">
+                {tempProviderInput === AIProvider.GEMINI && <a href="https://aistudio.google.com/app/apikey" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">Gemini anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
+                {tempProviderInput === AIProvider.OPENAI && <a href="https://platform.openai.com/api-keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">OpenAI anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
+                {tempProviderInput === AIProvider.ANTHROPIC && <a href="https://console.anthropic.com/settings/keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">Anthropic anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
               </div>
-          </div>
+           </div>
+        </div>
       )}
 
-      {/* Language Selector Sheet */}
-      {selectorType && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setSelectorType(null)}>
-              <div className="bg-slate-900 border-t border-slate-700 w-full max-w-lg rounded-t-3xl shadow-2xl overflow-hidden mb-[env(safe-area-inset-bottom)]" onClick={e => e.stopPropagation()}>
-                  <div className="p-4 flex items-center justify-center relative border-b border-slate-800">
-                      <div className="w-12 h-1 bg-slate-700 rounded-full absolute top-3"></div>
-                      <h3 className="text-white font-semibold mt-2 flex items-center gap-2">
-                        <Globe size={18} className="text-blue-400" />
-                        {selectorType === 'source' ? 'Kaynak Dil Seçin' : 'Hedef Dil Seçin'}
-                      </h3>
-                  </div>
-                  <div className="p-6 grid grid-cols-2 gap-3 pb-8">
-                      {LANGUAGE_META.map((lang) => {
-                          const isSelected = (selectorType === 'source' && sourceLang === lang.code) || 
-                                             (selectorType === 'target' && targetLang === lang.code);
-                          return (
-                          <button
-                              key={lang.code}
-                              onClick={() => handleLanguageSelect(lang.code)}
-                              className={`p-4 rounded-xl border flex flex-col items-center gap-2 transition-all active:scale-95 touch-manipulation ${
-                                  isSelected 
-                                  ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-900/20' 
-                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750 hover:border-slate-600'
-                              }`}
-                          >
-                              <span className="text-4xl filter drop-shadow-md">{lang.flag}</span>
-                              <span className="font-medium text-sm">{lang.name}</span>
-                          </button>
-                      )})}
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Settings Sheet */}
+      {/* SETTINGS SHEET */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowSettings(false)}>
-          <div className="bg-slate-900 border-t border-slate-700 w-full max-w-lg rounded-t-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col mb-[env(safe-area-inset-bottom)]" onClick={e => e.stopPropagation()}>
-             <div className="p-5 flex justify-between items-center bg-slate-800/50">
-                <h2 className="text-lg font-bold flex items-center gap-2 text-white">
-                  <Settings size={20} className="text-blue-400"/> Ayarlar
-                </h2>
-                <div className="w-12 h-1 bg-slate-700 rounded-full absolute top-3 left-1/2 -translate-x-1/2"></div>
-                <button onClick={() => setShowSettings(false)} className="p-1 bg-slate-800 rounded-full text-slate-400"><X size={20} /></button>
-             </div>
-             
-             <div className="p-6 overflow-y-auto space-y-6 pb-10">
-               
-               {/* Archive Button */}
-               <button 
-                  onClick={() => { setViewMode('archive'); setShowSettings(false); }}
-                  className="w-full bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between hover:bg-slate-750 transition-colors"
-               >
-                   <div className="flex items-center gap-3">
-                       <FolderOpen size={20} className="text-orange-400" />
-                       <div className="text-left">
-                           <div className="font-semibold text-white">Kayıtlı Oturumlar</div>
-                           <div className="text-xs text-slate-500">Arşivlenmiş dinleme kayıtlarını incele</div>
-                       </div>
-                   </div>
-                   <ChevronRight size={18} className="text-slate-500" />
-               </button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in" onClick={() => setShowSettings(false)}>
+           <div className="bg-slate-900 w-full max-w-lg rounded-t-[2.5rem] p-8 space-y-8 shadow-2xl overflow-y-auto max-h-[90vh] pb-20 no-scrollbar" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold flex items-center gap-2"><Settings className="text-blue-400" /> Ayarlar</h2>
+                <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-800 rounded-full"><X /></button>
+              </div>
+              
+              <button onClick={() => { setViewMode('archive'); setShowSettings(false); }} className="w-full p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex items-center justify-between transition-all group">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-600/20 rounded-xl group-hover:bg-blue-600/40 transition-colors"><FolderOpen size={24} className="text-blue-400" /></div>
+                  <div className="text-left">
+                    <p className="font-bold">Kayıtlı Oturumlar</p>
+                    <p className="text-xs text-slate-500">Geçmiş görüşmeleri incele</p>
+                  </div>
+                </div>
+                <ChevronRight size={20} className="text-slate-600" />
+              </button>
 
-               {/* API Key Management */}
-               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-slate-200 flex items-center gap-2">
-                        <Key size={18} className="text-yellow-400" /> API Anahtarı
-                    </span>
-                    <button 
-                        onClick={handleDeleteApiKey} 
-                        className="px-3 py-1 bg-red-500/10 text-red-400 text-xs font-bold rounded-lg hover:bg-red-500/20 flex items-center gap-1"
-                    >
-                        <LogOut size={12} /> Çıkış
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Yapay Zeka Modeli</h3>
+                <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-6">
+                  <div className="flex gap-2">
+                    {Object.values(AIProvider).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          setSelectedProvider(p);
+                          localStorage.setItem('selected_provider', p);
+                          triggerHaptic();
+                        }}
+                        className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all border ${selectedProvider === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {Object.values(AIProvider).map(p => (
+                      <div key={p} className="relative">
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block px-1">{p} API Anahtarı</label>
+                        <input 
+                          type="password"
+                          value={apiKeys[p.toLowerCase() as keyof APIKeys] || ''}
+                          onChange={e => {
+                            const newKeys = { ...apiKeys, [p.toLowerCase()]: e.target.value };
+                            setApiKeys(newKeys);
+                            localStorage.setItem('ai_api_keys', JSON.stringify(newKeys));
+                          }}
+                          placeholder={`${p} anahtarını girin`}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-600 outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {selectedProvider !== AIProvider.GEMINI && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex gap-3 items-start">
+                      <Zap size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                      <p className="text-[10px] text-amber-200/70 leading-relaxed">
+                        <strong>Not:</strong> Sesli canlı çeviri (Canlı Mod) şu an sadece Gemini ile çalışmaktadır. Diğer modeller sadece klavye girişi ile yapılan çevirilerde kullanılabilir.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Özellikler</h3>
+                <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-bold text-slate-200">Gürültü Modu (PTT)</p>
+                      <p className="text-xs text-slate-500">Sadece basılı tuttuğunuzda dinler</p>
+                    </div>
+                    <button onClick={() => setIsNoiseMode(!isNoiseMode)} className={`w-14 h-8 rounded-full p-1 transition-colors ${isNoiseMode ? 'bg-emerald-600' : 'bg-slate-700'}`}>
+                      <div className={`w-6 h-6 rounded-full bg-white transition-transform ${isNoiseMode ? 'translate-x-6' : ''}`}></div>
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 mb-2">
-                      Mevcut anahtar: <span className="text-slate-300 font-mono">••••••••{apiKey.slice(-4)}</span>
-                  </p>
-                  <p className="text-[10px] text-slate-600">
-                      Bu anahtar sadece cihazınızda saklanır ve Google sunucularına iletilir.
-                  </p>
-               </div>
+                </div>
+              </div>
 
-               {/* Noise Mode Toggle */}
-               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-slate-200 flex items-center gap-2">
-                        <Waves size={18} className="text-teal-400" /> Gürültü Engelleme (Bas-Konuş)
-                    </span>
-                    <button onClick={toggleNoiseMode} 
-                      className={`w-12 h-7 rounded-full p-1 transition-colors ${isNoiseMode ? 'bg-teal-500' : 'bg-slate-700'}`}>
-                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isNoiseMode ? 'translate-x-5' : ''}`}></div>
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500">
-                      Kalabalık ortamlarda sadece butona bastığınızda sesi iletir. Arka plan gürültüsünü filtreler.
-                  </p>
-               </div>
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Bilgi</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setShowUpdates(true)} className="p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex flex-col items-center gap-2 transition-all group">
+                    <div className="p-3 bg-blue-600/20 rounded-xl group-hover:bg-blue-600/40 transition-colors"><History size={20} className="text-blue-400" /></div>
+                    <span className="text-xs font-bold">Güncellemeler</span>
+                  </button>
+                  <button onClick={() => setShowGuide(true)} className="p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex flex-col items-center gap-2 transition-all group">
+                    <div className="p-3 bg-emerald-600/20 rounded-xl group-hover:bg-emerald-600/40 transition-colors"><BookOpen size={20} className="text-emerald-400" /></div>
+                    <span className="text-xs font-bold">Kullanım Kılavuzu</span>
+                  </button>
+                </div>
+              </div>
 
-               {/* Mode */}
-               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-semibold text-slate-200">Çevrimdışı Mod</span>
-                    <button onClick={() => { if(isConnected) stopConnection(); setForceOfflineMode(!forceOfflineMode); }} 
-                      className={`w-12 h-7 rounded-full p-1 transition-colors ${forceOfflineMode ? 'bg-orange-500' : 'bg-slate-700'}`}>
-                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${forceOfflineMode ? 'translate-x-5' : ''}`}></div>
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500">İnternet bağlantısı olmadan cihaz üzerinde basit çeviri yapın.</p>
-               </div>
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Güvenlik</h3>
+                <button 
+                  onClick={() => { localStorage.removeItem('ai_api_keys'); localStorage.removeItem('gemini_api_key'); window.location.reload(); }} 
+                  className="w-full p-5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors border border-red-500/10"
+                >
+                  <LogOut size={20} /> Tüm Verileri Temizle ve Çıkış Yap
+                </button>
+              </div>
+              
+              <div className="text-center text-[10px] text-slate-600 pt-4 uppercase tracking-[0.2em]">Ai Live Translate v1.0 • Stable Build</div>
+           </div>
+        </div>
+      )}
 
-               {/* Voice Selection */}
-               <div className="bg-slate-800/30 p-4 rounded-2xl border border-slate-800">
-                   <div className="flex items-center gap-2 mb-3">
-                       <User size={16} className="text-blue-400" />
-                       <span className="font-semibold text-slate-200 text-sm">Ses Tercihi</span>
-                   </div>
-                   <div className="grid grid-cols-2 gap-3">
-                       <button 
-                         onClick={() => handleVoiceChange('female')}
-                         className={`py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all ${voiceType === 'female' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-                       >
-                           <span className="text-lg">👩</span>
-                           <span className="font-medium text-sm">Kadın</span>
-                       </button>
-                       <button 
-                         onClick={() => handleVoiceChange('male')}
-                         className={`py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all ${voiceType === 'male' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
-                       >
-                           <span className="text-lg">👨</span>
-                           <span className="font-medium text-sm">Erkek</span>
-                       </button>
-                   </div>
-                   <p className="text-xs text-slate-500 mt-2">Çevirmen sesi (Sadece Online modda geçerlidir).</p>
-               </div>
+      {/* UPDATES MODAL */}
+      {showUpdates && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh]">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center">
+              <h2 className="text-2xl font-bold flex items-center gap-3"><History className="text-blue-400" /> Güncellemeler</h2>
+              <button onClick={() => setShowUpdates(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X /></button>
+            </div>
+            <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
+              <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-400 font-bold">v1.2</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">Çoklu Model Desteği</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>OpenAI (GPT-4o) ve Anthropic (Claude 3.5 Sonnet) desteği eklendi.</li>
+                  <li>Çoklu API anahtarı yönetimi ve sağlayıcı seçimi getirildi.</li>
+                  <li>Klavye girişi ile yapılan çevirilerde model seçimi aktif edildi.</li>
+                </ul>
+              </div>
+              
+              <div className="relative pl-8 border-l-2 border-slate-800 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-700 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-bold">v1.1</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">Yenilenen Kimlik</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>Uygulama ismi "Ai Live Translate" olarak güncellendi.</li>
+                  <li>"Developed by Ali TELLIOGLU" imzası eklendi.</li>
+                  <li>Yeni logo ve görsel düzenlemeler yapıldı.</li>
+                </ul>
+              </div>
 
-               {/* Packs */}
-               <div>
-                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 px-1">Dil Paketleri</h3>
-                 <div className="space-y-3">
-                    {offlinePacks.map(pack => {
-                       let flag = '🏳️';
-                       if (pack.id.includes('en')) flag = '🇬🇧';
-                       if (pack.id.includes('nl')) flag = '🇳🇱';
-                       if (pack.id.includes('ar')) flag = '🇸🇦';
-                       if (pack.id.includes('ru')) flag = '🇷🇺';
-                       if (pack.id.includes('de')) flag = '🇩🇪';
-                       if (pack.id.includes('it')) flag = '🇮🇹';
-                       if (pack.id.includes('fr')) flag = '🇫🇷';
-                       if (pack.id.includes('ua')) flag = '🇺🇦';
-                       
-                       return (
-                       <div key={pack.id} className="bg-slate-800/50 p-3 rounded-xl border border-slate-700/50 flex items-center justify-between">
-                          <div className="flex-1">
-                             <div className="flex items-center gap-2">
-                               <span className="text-lg">{flag}</span>
-                               <span className="font-semibold text-sm">{pack.pair}</span>
-                               <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">{pack.size}</span>
-                             </div>
-                             <div className="text-xs text-slate-400 mt-1">{pack.name}</div>
-                             {pack.progress > 0 && pack.progress < 100 && (
-                               <div className="w-full h-1 bg-slate-700 mt-2 rounded-full overflow-hidden">
-                                  <div className="h-full bg-blue-500 transition-all" style={{width: `${pack.progress}%`}}></div>
-                               </div>
-                             )}
-                          </div>
-                          
-                          <div className="ml-4">
-                             {pack.downloaded ? (
-                               <button onClick={() => deletePack(pack.id)} className="p-2 text-green-400 bg-green-400/10 rounded-full hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                                  <Check size={18} />
-                               </button>
-                             ) : pack.progress > 0 ? (
-                               <span className="text-xs font-bold text-blue-400">{pack.progress}%</span>
-                             ) : (
-                               <button onClick={() => downloadPack(pack.id)} className="p-2 bg-slate-700 hover:bg-blue-600 rounded-full text-white transition-colors">
-                                 <Download size={18} />
-                               </button>
-                             )}
-                          </div>
-                       </div>
-                    )})}
-                 </div>
-               </div>
-               
-               {/* Clear History */}
-               <button onClick={() => { setMessages([]); setRealtimeInput(''); setRealtimeOutput(''); setShowSettings(false); }} className="w-full py-4 text-sm text-red-400 font-medium bg-red-500/10 rounded-2xl hover:bg-red-500/20 transition-colors flex items-center justify-center gap-2 active:scale-95 touch-manipulation">
-                  <Trash2 size={16} /> Geçmişi Temizle
-               </button>
-             </div>
+              <div className="relative pl-8 border-l-2 border-slate-800 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-slate-700 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-bold">v1.0</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">Lansman</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>Gemini Live API ile gerçek zamanlı simultane çeviri.</li>
+                  <li>Çevrimdışı mod ve dil paketleri desteği.</li>
+                  <li>Sesli ve yazılı çeviri özellikleri.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GUIDE MODAL */}
+      {showGuide && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh]">
+            <div className="p-8 border-b border-slate-800 flex justify-between items-center">
+              <h2 className="text-2xl font-bold flex items-center gap-3"><BookOpen className="text-emerald-400" /> Kullanım Kılavuzu</h2>
+              <button onClick={() => setShowGuide(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X /></button>
+            </div>
+            <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Sesli Çeviri (Canlı Mod)</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Ana ekrandaki büyük mikrofon butonuna basarak canlı çeviriyi başlatın. Konuştuğunuzda sistem sesinizi otomatik olarak algılar ve saniyeler içinde hedef dile çevirerek sesli olarak seslendirir.
+                </p>
+                <div className="p-3 bg-slate-800/50 rounded-xl text-xs text-slate-400 italic border-l-2 border-emerald-500">
+                  İpucu: Gürültülü ortamlarda Ayarlar'dan "Gürültü Modu"nu açarak sadece butona basılı tuttuğunuzda dinlemesini sağlayabilirsiniz.
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yazılı Çeviri</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Üst menüdeki "Yaz" butonuna basarak klavyeyi açabilirsiniz. Metninizi yazıp gönderdiğinizde seçili olan yapay zeka modeli (Gemini, OpenAI veya Anthropic) tarafından çeviri yapılır.
+                </p>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yüz Yüze (Split) Modu</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Üst menüdeki kare ikonuna basarak ekranı ikiye bölebilirsiniz. Bu mod, masada karşılıklı oturan kişiler için tasarlanmıştır. Üst kısım karşıdaki kişiye göre 180 derece ters döner, böylece her iki taraf da çeviriyi kendi yönünden okuyabilir.
+                </p>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yapay Zeka Modelleri</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Ayarlar menüsünden çeviri yapacak beyni seçebilirsiniz. Gemini Live API en hızlı sesli deneyimi sunarken, OpenAI ve Anthropic modelleri yazılı çevirilerde alternatif zeka seviyeleri sunar.
+                </p>
+              </section>
+
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Çevrimdışı Mod</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  İnternetiniz olmadığında Ayarlar'dan "Çevrimdışı Mod"u aktif edebilirsiniz. Bunun için önceden ilgili dil paketlerini indirmiş olmanız gerekir.
+                </p>
+              </section>
+            </div>
           </div>
         </div>
       )}

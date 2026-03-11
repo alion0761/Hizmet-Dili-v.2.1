@@ -7,7 +7,23 @@ export enum TargetLanguage {
   GERMAN = 'German',
   ITALIAN = 'Italian',
   FRENCH = 'French',
-  UKRAINIAN = 'Ukrainian'
+  UKRAINIAN = 'Ukrainian',
+  PORTUGUESE = 'Portuguese',
+  CHINESE = 'Chinese',
+  SPANISH = 'Spanish',
+  JAPANESE = 'Japanese'
+}
+
+export enum AIProvider {
+  GEMINI = 'Gemini',
+  OPENAI = 'OpenAI',
+  ANTHROPIC = 'Anthropic'
+}
+
+export interface APIKeys {
+  gemini?: string;
+  openai?: string;
+  anthropic?: string;
 }
 
 export interface ChatMessage {
@@ -16,7 +32,7 @@ export interface ChatMessage {
   text: string;
   timestamp: Date;
   isFinal: boolean;
-  langCode?: TargetLanguage; // Added to track which language this message is in
+  langCode?: TargetLanguage;
 }
 
 export interface AudioConfig {
@@ -26,16 +42,16 @@ export interface AudioConfig {
 
 export interface OfflinePack {
   id: string;
-  pair: string; // e.g., "TR-EN"
+  pair: string;
   name: string;
   size: string;
   downloaded: boolean;
-  progress: number; // 0-100
+  progress: number;
 }
 
 export interface ArchivedSession {
   id: string;
-  date: string; // ISO String
+  date: string;
   targetLang: TargetLanguage;
   preview: string;
   messages: ChatMessage[];
