@@ -5,7 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
-import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen } from 'lucide-react';
+import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2 } from 'lucide-react';
 
 // Live API Configuration
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
@@ -104,6 +104,7 @@ const App: React.FC = () => {
   const [textInput, setTextInput] = useState('');
   const [isTextTranslating, setIsTextTranslating] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [isSpeechPlaying, setIsSpeechPlaying] = useState<string | null>(null);
   const [showUpdates, setShowUpdates] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
@@ -254,6 +255,55 @@ const App: React.FC = () => {
       setError(error.message || "Çeviri sırasında bir hata oluştu.");
     } finally {
       setIsTextTranslating(false);
+    }
+  };
+
+  const handlePlaySpeech = async (text: string, messageId: string) => {
+    if (!text || isSpeechPlaying) return;
+    
+    setIsSpeechPlaying(messageId);
+    triggerHaptic();
+
+    try {
+      const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+      if (!apiKey) throw new Error("API Anahtarı bulunamadı.");
+
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
+        contents: [{ parts: [{ text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: voiceType === 'female' ? 'Kore' : 'Fenrir' },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        const arrayBuffer = base64ToArrayBuffer(base64Audio);
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        const float32Data = pcm16ToFloat32(arrayBuffer);
+        const buffer = audioCtx.createBuffer(1, float32Data.length, 24000);
+        buffer.getChannelData(0).set(float32Data);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        source.onended = () => {
+          setIsSpeechPlaying(null);
+          audioCtx.close();
+        };
+        source.start();
+      } else {
+        throw new Error("Ses verisi alınamadı.");
+      }
+    } catch (err: any) {
+      console.error("TTS Error:", err);
+      setError(err.message || "Ses çalınırken bir hata oluştu.");
+      setIsSpeechPlaying(null);
     }
   };
 
@@ -498,6 +548,14 @@ const App: React.FC = () => {
                   <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-start' : 'items-end'}`}>
                     <div className={`max-w-[85%] p-4 rounded-2xl ${m.role === 'user' ? 'bg-slate-800/80 text-slate-300' : 'bg-blue-600 text-white'}`}>
                       <p className="text-[15px] leading-relaxed">{m.text}</p>
+                      {m.role === 'model' && (
+                        <button 
+                          onClick={() => handlePlaySpeech(m.text, `archive-${i}`)}
+                          className={`mt-2 p-1.5 rounded-lg transition-all ${isSpeechPlaying === `archive-${i}` ? 'bg-white/20 text-white animate-pulse' : 'hover:bg-white/10 text-white/70'}`}
+                        >
+                          <Volume2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -549,6 +607,14 @@ const App: React.FC = () => {
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
                  <p className="text-2xl sm:text-4xl font-bold text-emerald-400 leading-tight break-words">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
+                 {(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text) && (
+                    <button 
+                      onClick={() => handlePlaySpeech(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '', 'split-target')}
+                      className={`mt-4 p-3 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${isSpeechPlaying === 'split-target' ? 'animate-pulse' : ''}`}
+                    >
+                      <Volume2 size={24} />
+                    </button>
+                  )}
                </div>
             </div>
             <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-6 overflow-y-auto">
@@ -571,6 +637,14 @@ const App: React.FC = () => {
                 <span className="text-[10px] text-slate-500 mb-1 px-1">{m.role === 'user' ? 'Siz' : 'Tercüman'}</span>
                 <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-slate-800/80 text-slate-200 rounded-tl-sm' : 'bg-emerald-600 text-white rounded-tr-sm'}`}>
                   <p className="text-[15px] leading-relaxed">{m.text}</p>
+                  {m.role === 'model' && (
+                    <button 
+                      onClick={() => handlePlaySpeech(m.text, m.id)}
+                      className={`mt-2 p-1.5 rounded-lg transition-all ${isSpeechPlaying === m.id ? 'bg-white/20 text-white animate-pulse' : 'hover:bg-white/10 text-white/70'}`}
+                    >
+                      <Volume2 size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
