@@ -694,6 +694,7 @@ const App: React.FC = () => {
                   ref={videoRef} 
                   autoPlay 
                   playsInline 
+                  muted
                   className="absolute inset-0 w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 border-[2px] border-white/20 m-10 rounded-3xl pointer-events-none flex items-center justify-center">
@@ -1164,6 +1165,19 @@ const App: React.FC = () => {
               <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
                 <div className="flex items-center gap-2">
+                  <span className="text-blue-400 font-bold">v1.4</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">12 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">Foto Çeviri Özelliği</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>Kamera ile ürün/metin fotoğrafı çekip anlık çeviri yapma özelliği eklendi.</li>
+                  <li>Görsel analizi ile ürün hakkında kısa bilgi alma özelliği getirildi.</li>
+                </ul>
+              </div>
+
+              <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
                   <span className="text-blue-400 font-bold">v1.3</span>
                   <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
                 </div>
@@ -1230,6 +1244,13 @@ const App: React.FC = () => {
               <button onClick={() => setShowGuide(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X /></button>
             </div>
             <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
+              <section className="space-y-3">
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Foto Çeviri</h4>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Üst menüdeki "Foto" butonuna basarak kamerayı açın. Ürünün veya metnin fotoğrafını çekin. Yapay zeka görseli analiz ederek metni çevirecek ve ürün hakkında kısa bilgi verecektir.
+                </p>
+              </section>
+
               <section className="space-y-3">
                 <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Sesli Çeviri (Canlı Mod)</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
