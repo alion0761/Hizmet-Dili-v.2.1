@@ -2,6 +2,7 @@
   "name": "Ai Live Translate",
   "description": "Real-time simultaneous translation powered by Gemini, OpenAI, and Anthropic. Developer by Ali TELLIOGLU.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

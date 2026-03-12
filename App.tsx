@@ -5,7 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
-import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2 } from 'lucide-react';
+import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
 
 // Live API Configuration
 const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
@@ -78,7 +78,13 @@ const App: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [tempApiKeyInput, setTempApiKeyInput] = useState('');
   const [tempProviderInput, setTempProviderInput] = useState<AIProvider>(AIProvider.GEMINI);
-  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive'>('chat');
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive' | 'photo'>('chat');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<{ translation: string, info: string } | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Voice Preference: 'female' | 'male'
   const [voiceType, setVoiceType] = useState<'female' | 'male'>(() => {
@@ -179,6 +185,91 @@ const App: React.FC = () => {
     if (isConnected && !isListenModeActive) {
       stopConnection();
       setTimeout(() => startLiveSession('bidirectional'), 300);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setViewMode('photo');
+      triggerHaptic();
+    } catch (err) {
+      console.error("Camera error:", err);
+      setError("Kamera erişimi sağlanamadı.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setCapturedImage(null);
+    setAnalysisResult(null);
+  };
+
+  const handleCapture = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = canvas.toDataURL('image/jpeg');
+      setCapturedImage(imageData);
+      analyzeImage(imageData);
+      triggerHaptic();
+    }
+  };
+
+  const analyzeImage = async (base64Image: string) => {
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    
+    const sourceDetails = getLangDetails(sourceLang);
+    const targetDetails = getLangDetails(targetLang);
+
+    try {
+      const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+      if (!apiKey) throw new Error("API Anahtarı bulunamadı.");
+
+      const ai = new GoogleGenAI({ apiKey });
+      const base64Data = base64Image.split(',')[1];
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: {
+          parts: [
+            { text: `Bu görseldeki ürünü analiz et. 
+              1. Görseldeki metinleri veya ürün ismini "${targetDetails.name}" diline çevir.
+              2. Ürün hakkında "${targetDetails.name}" dilinde çok kısa ve öz (maksimum 2 cümle) bilgi ver.
+              Yanıtı şu JSON formatında ver: {"translation": "çeviri", "info": "bilgi"}` 
+            },
+            { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
+          ]
+        },
+        config: {
+          responseMimeType: 'application/json'
+        }
+      });
+
+      const result = JSON.parse(response.text);
+      setAnalysisResult(result);
+    } catch (err: any) {
+      console.error("Analysis error:", err);
+      setError("Görsel analiz edilemedi.");
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -497,6 +588,22 @@ const App: React.FC = () => {
         <div className="flex items-center gap-2">
           <button 
             onClick={() => {
+              if (viewMode === 'photo') {
+                stopCamera();
+                setViewMode('chat');
+              } else {
+                startCamera();
+              }
+              triggerHaptic();
+            }} 
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${viewMode === 'photo' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            title="Foto Çeviri"
+          >
+            <Camera size={16} />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Foto</span>
+          </button>
+          <button 
+            onClick={() => {
               setIsKeyboardVisible(!isKeyboardVisible);
               triggerHaptic();
             }} 
@@ -578,6 +685,68 @@ const App: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        ) : viewMode === 'photo' ? (
+          <div className="flex-1 relative bg-black flex flex-col">
+            {!capturedImage ? (
+              <div className="flex-1 relative overflow-hidden">
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 border-[2px] border-white/20 m-10 rounded-3xl pointer-events-none flex items-center justify-center">
+                   <div className="w-10 h-10 border-t-2 border-l-2 border-white absolute top-0 left-0 rounded-tl-lg"></div>
+                   <div className="w-10 h-10 border-t-2 border-r-2 border-white absolute top-0 right-0 rounded-tr-lg"></div>
+                   <div className="w-10 h-10 border-b-2 border-l-2 border-white absolute bottom-0 left-0 rounded-bl-lg"></div>
+                   <div className="w-10 h-10 border-b-2 border-r-2 border-white absolute bottom-0 right-0 rounded-br-lg"></div>
+                </div>
+                <div className="absolute bottom-10 left-0 right-0 flex justify-center px-6">
+                  <button 
+                    onClick={handleCapture}
+                    className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center bg-white/10 backdrop-blur-md active:scale-90 transition-transform"
+                  >
+                    <div className="w-14 h-14 rounded-full bg-white"></div>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 relative flex flex-col">
+                <img src={capturedImage} className="flex-1 object-cover" alt="Captured" />
+                <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-8 text-center">
+                  {isAnalyzing ? (
+                    <div className="space-y-4 flex flex-col items-center">
+                      <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-emerald-400 font-bold animate-pulse tracking-widest uppercase text-xs">Ürün Analiz Ediliyor...</p>
+                    </div>
+                  ) : analysisResult ? (
+                    <div className="bg-slate-900/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-300">
+                      <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                        <Sparkles size={24} />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white mb-2">{analysisResult.translation}</h3>
+                      <p className="text-slate-400 text-sm leading-relaxed mb-8">{analysisResult.info}</p>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => setCapturedImage(null)}
+                          className="flex-1 py-4 bg-slate-800 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={16} /> Tekrar
+                        </button>
+                        <button 
+                          onClick={() => handlePlaySpeech(analysisResult.translation + ". " + analysisResult.info, 'photo-result')}
+                          className={`flex-1 py-4 bg-emerald-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 ${isSpeechPlaying === 'photo-result' ? 'animate-pulse' : ''}`}
+                        >
+                          <Volume2 size={16} /> Dinle
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+            <canvas ref={canvasRef} className="hidden" />
           </div>
         ) : viewMode === 'listen' ? (
           <div className="flex-1 overflow-y-auto px-6 py-10 space-y-10 no-scrollbar">
