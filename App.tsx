@@ -599,10 +599,10 @@ const App: React.FC = () => {
                  <p className="text-2xl italic leading-relaxed">{realtimeInput}...</p>
                </div>
              )}
-             <div className="h-40"></div>
+ 
           </div>
         ) : viewMode === 'split' ? (
-          <div className="flex-1 flex flex-col pb-48">
+          <div className="flex-1 flex flex-col">
             <div className="flex-1 bg-slate-900/50 flex items-center justify-center p-6 rotate-180 border-b border-white/5 overflow-y-auto">
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
@@ -625,7 +625,7 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-5 py-8 space-y-8 no-scrollbar pb-32">
+          <div className="flex-1 overflow-y-auto px-5 py-8 space-y-8 no-scrollbar">
             {messages.length === 0 && !realtimeInput && (
               <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4 py-20">
                 <Globe size={80} />
@@ -668,8 +668,8 @@ const App: React.FC = () => {
         )}
 
         {/* CONTROLS */}
-        <div className={`absolute bottom-0 w-full p-6 backdrop-blur-2xl border-t border-white/5 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-950/90' : 'bg-slate-950/90'}`}>
-          <div className="h-8 w-full flex items-center justify-center mb-6">
+        <div className={`relative w-full p-6 backdrop-blur-2xl border-t border-white/5 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-950/90' : 'bg-slate-950/90'}`}>
+          <div className="h-6 w-full flex items-center justify-center mb-6">
             {isConnected && <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isListenModeActive ? '#f97316' : '#10b981'} />}
           </div>
           
@@ -699,12 +699,12 @@ const App: React.FC = () => {
           <div className="max-w-md mx-auto flex items-center justify-between gap-4">
             <button 
               onClick={() => !isConnected && setShowLangSelector('source')}
-              className={`w-16 h-16 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-3xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-14 h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {sourceDetails.flag}
             </button>
             
-            <div className="flex gap-4 items-end -mt-8">
+            <div className="flex gap-4 items-end -mt-6">
               <div className="relative group">
                 {isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-orange-500/40"></div>}
                 <button 
@@ -713,9 +713,9 @@ const App: React.FC = () => {
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('listen')} 
-                  className={`relative w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                  className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
                 >
-                  {isConnecting && isListenModeActive ? <Loader2 size={24} className="animate-spin" /> : <Ear size={24} />}
+                  {isConnecting && isListenModeActive ? <Loader2 size={20} className="animate-spin" /> : <Ear size={20} />}
                 </button>
               </div>
 
@@ -727,16 +727,16 @@ const App: React.FC = () => {
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('bidirectional')} 
-                  className={`relative w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
+                  className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
                 >
-                  {isConnecting && !isListenModeActive ? <Loader2 size={32} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={28} fill="currentColor" /> : <Mic size={36} />}
+                  {isConnecting && !isListenModeActive ? <Loader2 size={24} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={22} fill="currentColor" /> : <Mic size={28} />}
                 </button>
               </div>
             </div>
 
             <button 
               onClick={() => !isConnected && setShowLangSelector('target')}
-              className={`w-16 h-16 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-3xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-14 h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {targetDetails.flag}
             </button>
