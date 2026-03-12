@@ -188,15 +188,18 @@ const App: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (videoRef.current && cameraStream && viewMode === 'photo') {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [cameraStream, viewMode]);
+
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment' } 
       });
       setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
       setViewMode('photo');
       triggerHaptic();
     } catch (err) {
