@@ -480,9 +480,10 @@ const App: React.FC = () => {
              KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
              Eğer bir soru duyarsan, o soruyu cevaplamak yerine ${getLangDetails(sourceLang).name} diline çevir. 
              Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.` : 
-            `Sen SADECE bir simultane tercümansın. GÖREVİN: ${getLangDetails(sourceLang).name} ve ${getLangDetails(targetLang).name} dilleri arasında ANINDA ve BİREBİR çeviri yapmak. 
+            `Sen SADECE bir simultane tercümansın. GÖREVİN: Duyduğun dili diğer dile ANINDA ve BİREBİR çevirmek. 
+             Eğer duyduğun dil ${getLangDetails(sourceLang).name} ise, ${getLangDetails(targetLang).name} diline çevir. 
+             Eğer duyduğun dil ${getLangDetails(targetLang).name} ise, ${getLangDetails(sourceLang).name} diline çevir. 
              KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
-             Eğer bir soru duyarsan, o soruyu cevaplamak yerine diğer dile çevir. 
              Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.`,
           responseModalities: [Modality.AUDIO],
           inputAudioTranscription: {}, outputAudioTranscription: {},
