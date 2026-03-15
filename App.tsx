@@ -726,7 +726,7 @@ const App: React.FC = () => {
                       <p className="text-emerald-400 font-bold animate-pulse tracking-widest uppercase text-xs">Ürün Analiz Ediliyor...</p>
                     </div>
                   ) : analysisResult ? (
-                    <div className="bg-slate-900/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-300">
+                    <div className="bg-slate-900/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-300 max-h-[80vh] overflow-y-auto">
                       <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mb-6 mx-auto">
                         <Sparkles size={24} />
                       </div>
