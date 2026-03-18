@@ -235,6 +235,13 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSwapLanguages = () => {
+    if (isConnected) return;
+    const temp = sourceLang;
+    setSourceLang(targetLang);
+    setTargetLang(temp);
+  };
+
   const analyzeImage = async (base64Image: string) => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
@@ -876,6 +883,13 @@ const App: React.FC = () => {
               className={`w-14 h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {sourceDetails.flag}
+            </button>
+
+            <button 
+              onClick={handleSwapLanguages}
+              className={`p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <ArrowRightLeft size={20} />
             </button>
             
             <div className="flex gap-4 items-end -mt-6">
