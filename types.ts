@@ -14,6 +14,8 @@ export enum TargetLanguage {
   JAPANESE = 'Japanese'
 }
 
+export type UILanguage = 'tr' | 'en';
+
 export enum AIProvider {
   GEMINI = 'Gemini',
   OPENAI = 'OpenAI',

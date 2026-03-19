@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys } from './types';
+import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys, UILanguage } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
 import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
@@ -98,6 +98,39 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [realtimeInput, setRealtimeInput] = useState('');
   const [realtimeOutput, setRealtimeOutput] = useState('');
+  const [uiLanguage, setUiLanguage] = useState<UILanguage>('tr');
+
+  const t = (key: string) => {
+    const translations: Record<UILanguage, Record<string, string>> = {
+      tr: {
+        chat: 'Sohbet',
+        split: 'Bölünmüş',
+        listen: 'Dinle',
+        archive: 'Arşiv',
+        photo: 'Fotoğraf',
+        settings: 'Ayarlar',
+        guide: 'Kullanım Kılavuzu',
+        features: 'Özellikler',
+        noiseMode: 'Gürültü Modu (PTT)',
+        noiseModeDesc: 'Sadece basılı tuttuğunuzda dinler',
+        // ...
+      },
+      en: {
+        chat: 'Chat',
+        split: 'Split',
+        listen: 'Listen',
+        archive: 'Archive',
+        photo: 'Photo',
+        settings: 'Settings',
+        guide: 'User Guide',
+        features: 'Features',
+        noiseMode: 'Noise Mode (PTT)',
+        noiseModeDesc: 'Listens only when held',
+        // ...
+      }
+    };
+    return translations[uiLanguage][key] || key;
+  };
   const [isNoiseMode, setIsNoiseMode] = useState(false);
   const [isHoldingMic, setIsHoldingMic] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1038,8 +1071,13 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end justify-center animate-fade-in" onClick={() => setShowSettings(false)}>
            <div className="bg-slate-900 w-full max-w-lg rounded-t-[2.5rem] p-8 space-y-8 shadow-2xl overflow-y-auto max-h-[90vh] pb-20 no-scrollbar" onClick={e => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold flex items-center gap-2"><Settings className="text-blue-400" /> Ayarlar</h2>
-                <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-800 rounded-full"><X /></button>
+                <h2 className="text-2xl font-bold flex items-center gap-2"><Settings className="text-blue-400" /> {t('settings')}</h2>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setUiLanguage(uiLanguage === 'tr' ? 'en' : 'tr')} className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-300 hover:text-white">
+                    {uiLanguage === 'tr' ? 'EN' : 'TR'}
+                  </button>
+                  <button onClick={() => setShowSettings(false)} className="p-2 bg-slate-800 rounded-full"><X /></button>
+                </div>
               </div>
               
               <button onClick={() => { setViewMode('archive'); setShowSettings(false); }} className="w-full p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex items-center justify-between transition-all group">
@@ -1103,12 +1141,12 @@ const App: React.FC = () => {
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Özellikler</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{t('features')}</h3>
                 <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-bold text-slate-200">Gürültü Modu (PTT)</p>
-                      <p className="text-xs text-slate-500">Sadece basılı tuttuğunuzda dinler</p>
+                      <p className="font-bold text-slate-200">{t('noiseMode')}</p>
+                      <p className="text-xs text-slate-500">{t('noiseModeDesc')}</p>
                     </div>
                     <button onClick={() => setIsNoiseMode(!isNoiseMode)} className={`w-14 h-8 rounded-full p-1 transition-colors ${isNoiseMode ? 'bg-emerald-600' : 'bg-slate-700'}`}>
                       <div className={`w-6 h-6 rounded-full bg-white transition-transform ${isNoiseMode ? 'translate-x-6' : ''}`}></div>
