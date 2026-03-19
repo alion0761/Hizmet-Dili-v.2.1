@@ -100,7 +100,7 @@ const App: React.FC = () => {
   const [realtimeOutput, setRealtimeOutput] = useState('');
   const [uiLanguage, setUiLanguage] = useState<UILanguage>('tr');
 
-  const t = (key: string) => {
+  const t = (key: string, params?: Record<string, string>) => {
     const translations: Record<UILanguage, Record<string, string>> = {
       tr: {
         chat: 'Sohbet',
@@ -113,7 +113,120 @@ const App: React.FC = () => {
         features: 'Özellikler',
         noiseMode: 'Gürültü Modu (PTT)',
         noiseModeDesc: 'Sadece basılı tuttuğunuzda dinler',
-        // ...
+        saveSessionTitle: 'Oturumu Kaydet?',
+        saveSessionDesc: 'Bu görüşmedeki çevirileri daha sonra incelemek için arşive eklemek ister misiniz?',
+        delete: 'Sil',
+        save: 'Kaydet',
+        welcome: 'Hoş Geldiniz',
+        welcomeDesc: 'Devam etmek için bir yapay zeka sağlayıcısı seçin ve API anahtarınızı girin.',
+        apiKeyPlaceholder: '{provider} API Anahtarı',
+        enterApiKey: '{provider} anahtarını girin',
+        startApp: 'Uygulamayı Başlat',
+        createKeyGemini: 'Gemini anahtarı oluştur',
+        createKeyOpenAI: 'OpenAI anahtarı oluştur',
+        createKeyAnthropic: 'Anthropic anahtarı oluştur',
+        savedSessions: 'Kayıtlı Oturumlar',
+        savedSessionsDesc: 'Geçmiş görüşmeleri incele',
+        aiModel: 'Yapay Zeka Modeli',
+        aiKeyLabel: '{provider} API Anahtarı',
+        liveNoteTitle: 'Not:',
+        liveNoteDesc: 'Sesli canlı çeviri (Canlı Mod) şu an sadece Gemini ile çalışmaktadır. Diğer modeller sadece klavye girişi ile yapılan çevirilerde kullanılabilir.',
+        voicePreference: 'Ses Tercihi',
+        female: 'Kadın',
+        male: 'Erkek',
+        voiceNote: 'Çevirmen sesi (Sadece Gemini Live modunda geçerlidir).',
+        info: 'Bilgi',
+        updates: 'Güncellemeler',
+        security: 'Güvenlik',
+        clearData: 'Tüm Verileri Temizle ve Çıkış Yap',
+        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
+        updatesTitle: 'Güncellemeler',
+        guideTitle: 'Kullanım Kılavuzu',
+        photoTranslation: 'Foto Çeviri',
+        photoTranslationDesc: 'Üst menüdeki "Foto" butonuna basarak kamerayı açın. Ürünün veya metnin fotoğrafını çekin. Yapay zeka görseli analiz ederek metni çevirecek ve ürün hakkında kısa bilgi verecektir.',
+        voiceTranslationLive: 'Sesli Çeviri (Canlı Mod)',
+        voiceTranslationLiveDesc: 'Ana ekrandaki büyük mikrofon butonuna basarak canlı çeviriyi başlatın. Konuştuğunuzda sistem sesinizi otomatik olarak algılar ve saniyeler içinde hedef dile çevirerek sesli olarak seslendirir.',
+        tip: 'İpucu:',
+        noiseModeTip: 'Gürültülü ortamlarda Ayarlar\'dan "Gürültü Modu"nu açarak sadece butona basılı tuttuğunuzda dinlemesini sağlayabilirsiniz.',
+        textTranslation: 'Yazılı Çeviri',
+        textTranslationDesc: 'Üst menüdeki "Yaz" butonuna basarak klavyeyi açabilirsiniz. Metninizi yazıp gönderdiğinizde seçili olan yapay zeka modeli (Gemini, OpenAI veya Anthropic) tarafından çeviri yapılır.',
+        splitMode: 'Yüz Yüze (Split) Modu',
+        splitModeDesc: 'Üst menüdeki kare ikonuna basarak ekranı ikiye bölebilirsiniz. Bu mod, masada karşılıklı oturan kişiler için tasarlanmıştır. Üst kısım karşıdaki kişiye göre 180 derece ters döner, böylece her iki taraf da çeviriyi kendi yönünden okuyabilir.',
+        aiModelsTitle: 'Yapay Zeka Modelleri',
+        aiModelsDesc: 'Ayarlar menüsünden çeviri yapacak beyni seçebilirsiniz. Gemini Live API en hızlı sesli deneyimi sunarken, OpenAI ve Anthropic modelleri yazılı çevirilerde alternatif zeka seviyeleri sunar.',
+        voicePreferenceDesc: 'Ayarlar menüsünden çevirmenin sesini "Kadın" veya "Erkek" olarak değiştirebilirsiniz. Bu ayar Gemini Live modu aktifken geçerlidir ve çevirilerin seslendirilme tonunu belirler.',
+        offlineMode: 'Çevrimdışı Mod',
+        offlineModeDesc: 'İnternetiniz olmadığında Ayarlar\'dan "Çevrimdışı Mod"u aktif edebilirsiniz. Bunun için önceden ilgili dil paketlerini indirmiş olmanız gerekir.',
+        listeningMode: 'Dinleme Modu',
+        developerBy: 'Developer by Ali TELLIOGLU',
+        keyboardInput: 'Klavye Girişi',
+        write: 'Yaz',
+        backToArchive: 'Arşive Dön',
+        translationOf: '{lang} Tercümesi',
+        noRecordings: 'Henüz kayıt yok',
+        analyzingProduct: 'Ürün Analiz Ediliyor...',
+        retry: 'Tekrar',
+        listenAction: 'Dinle',
+        translating: 'Çevriliyor...',
+        translationWithLang: 'Çeviri ({lang})',
+        listeningWithLang: 'Dinleniyor ({lang})',
+        startSpeaking: 'KONUŞMAYA BAŞLA',
+        you: 'Siz',
+        translator: 'Tercüman',
+        detecting: 'ALGILANIYOR...',
+        typeInLang: '{lang} dilinde yazın...',
+        update17Title: 'Versiyon Güncellemesi',
+        update17Desc1: "Uygulama versiyonu v1.7'ye yükseltildi.",
+        update17Desc2: "Tüm çeviri anahtarları ve metinler kontrol edilerek güncellendi.",
+        update16Title: 'Tam Uluslararasılaştırma',
+        update16Desc1: 'Tüm butonlar, menüler ve bildirimler için tam İngilizce desteği tamamlandı.',
+        update16Desc2: 'Uygulama genelindeki tüm sabit metinler dinamik hale getirildi.',
+        update15Title: 'Dil Desteği',
+        update15Desc1: 'Arayüz için temel İngilizce dil desteği eklendi.',
+        update15Desc2: 'Dinamik çeviri sistemi (i18n) altyapısı kuruldu.',
+        update13Title: 'Bilgi ve Rehber',
+        update13Desc1: 'Kullanım Kılavuzu ve Güncellemeler bölümleri eklendi.',
+        update13Desc2: 'Ses Tercihi (Kadın/Erkek) özelliği getirildi.',
+        update13Desc3: 'Haptik geri bildirim desteği eklendi.',
+        update13Desc4: 'Yazım hataları düzeltildi ("Developer" imzası).',
+        update12Title: 'Çoklu Model Desteği',
+        update12Desc1: 'OpenAI (GPT-4o) ve Anthropic (Claude 3.5 Sonnet) desteği eklendi.',
+        update12Desc2: 'Çoklu API anahtarı yönetimi ve sağlayıcı seçimi getirildi.',
+        cameraError: 'Kamera erişimi sağlanamadı.',
+        apiKeyMissing: 'API Anahtarı bulunamadı.',
+        geminiKeyMissing: 'Gemini API anahtarı bulunamadı. Lütfen ayarlardan girin.',
+        openaiKeyMissing: 'OpenAI API anahtarı bulunamadı. Lütfen ayarlardan girin.',
+        anthropicKeyMissing: 'Anthropic API anahtarı bulunamadı. Lütfen ayarlardan girin.',
+        analysisError: 'Görsel analiz edilemedi.',
+        translationError: 'Çeviri sırasında bir hata oluştu.',
+        audioError: 'Ses çalınırken bir hata oluştu.',
+        connectionError: 'Bağlantı Hatası',
+        update11Title: 'Görsel ve Marka',
+        update11Desc1: 'Uygulama ismi "Ai Live Translate" olarak güncellendi.',
+        update11Desc2: '"Developer by Ali TELLIOGLU" imzası eklendi.',
+        update11Desc3: 'Yeni logo ve görsel düzenlemeler yapıldı.',
+        update10Title: 'İlk Yayın',
+        update10Desc1: 'Gemini Live API ile gerçek zamanlı simultane çeviri.',
+        update10Desc2: 'Çevrimdışı mod ve dil paketleri desteği.',
+        update10Desc3: 'Sesli ve yazılı çeviri özellikleri.',
+        systemPromptLive: `Sen SADECE bir simultane tercümansın. GÖREVİN: {target} dilinde duyduğun her şeyi ANINDA ve BİREBİR {source} diline çevirmek. 
+             KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
+             Eğer bir soru duyarsan, o soruyu cevaplamak yerine {source} diline çevir. 
+             Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.`,
+        systemPromptAuto: `Sen SADECE bir simultane tercümansın. GÖREVİN: Duyduğun dili diğer dile ANINDA ve BİREBİR çevirmek. 
+             Eğer duyduğun dil {source} ise, {target} diline çevir. 
+             Eğer duyduğun dil {target} ise, {source} diline çevir. 
+             KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
+             Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.`,
+        systemPromptText: `Sen bir tercümansın. GÖREVİN: "{source}" dilindeki metni "{target}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
+        photoPrompt: `Bu görseldeki ürünü analiz et. 
+              1. Görseldeki metinleri veya ürün ismini "{target}" diline çevir.
+              2. Ürün hakkında "{target}" dilinde çok kısa ve öz (maksimum 2 cümle) bilgi ver.
+              Yanıtı şu JSON formatında ver: {"translation": "çeviri", "info": "bilgi"}`,
+        emptySession: 'Boş Oturum',
+        noAudioData: 'Ses verisi alınamadı.',
+        apiKeyMissingShort: 'API Anahtarı eksik.',
+        noTranslationReceived: 'Çeviri alınamadı.',
       },
       en: {
         chat: 'Chat',
@@ -126,10 +239,130 @@ const App: React.FC = () => {
         features: 'Features',
         noiseMode: 'Noise Mode (PTT)',
         noiseModeDesc: 'Listens only when held',
-        // ...
+        saveSessionTitle: 'Save Session?',
+        saveSessionDesc: 'Would you like to add the translations from this conversation to the archive for later review?',
+        delete: 'Delete',
+        save: 'Save',
+        welcome: 'Welcome',
+        welcomeDesc: 'Select an AI provider and enter your API key to continue.',
+        apiKeyPlaceholder: '{provider} API Key',
+        enterApiKey: 'Enter {provider} key',
+        startApp: 'Start Application',
+        createKeyGemini: 'Create Gemini key',
+        createKeyOpenAI: 'Create OpenAI key',
+        createKeyAnthropic: 'Create Anthropic key',
+        savedSessions: 'Saved Sessions',
+        savedSessionsDesc: 'Review past conversations',
+        aiModel: 'AI Model',
+        aiKeyLabel: '{provider} API Key',
+        liveNoteTitle: 'Note:',
+        liveNoteDesc: 'Voice live translation (Live Mode) currently only works with Gemini. Other models can only be used for keyboard input translations.',
+        voicePreference: 'Voice Preference',
+        female: 'Female',
+        male: 'Male',
+        voiceNote: 'Translator voice (Only applicable in Gemini Live mode).',
+        info: 'Information',
+        updates: 'Updates',
+        security: 'Security',
+        clearData: 'Clear All Data and Logout',
+        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
+        updatesTitle: 'Updates',
+        guideTitle: 'User Guide',
+        photoTranslation: 'Photo Translation',
+        photoTranslationDesc: 'Open the camera by pressing the "Photo" button in the top menu. Take a photo of the product or text. AI will analyze the image, translate the text, and provide brief information about the product.',
+        voiceTranslationLive: 'Voice Translation (Live Mode)',
+        voiceTranslationLiveDesc: 'Start live translation by pressing the large microphone button on the main screen. When you speak, the system automatically detects your voice and translates it into the target language within seconds, speaking it aloud.',
+        tip: 'Tip:',
+        noiseModeTip: 'In noisy environments, you can enable "Noise Mode" from Settings to make it listen only when you hold the button.',
+        textTranslation: 'Text Translation',
+        textTranslationDesc: 'You can open the keyboard by pressing the "Write" button in the top menu. When you type and send your text, it is translated by the selected AI model (Gemini, OpenAI, or Anthropic).',
+        splitMode: 'Face-to-Face (Split) Mode',
+        splitModeDesc: 'You can split the screen by pressing the square icon in the top menu. This mode is designed for people sitting across from each other at a table. The top part rotates 180 degrees relative to the person opposite, so both sides can read the translation from their own direction.',
+        aiModelsTitle: 'AI Models',
+        aiModelsDesc: 'You can choose the brain that will translate from the Settings menu. While Gemini Live API offers the fastest voice experience, OpenAI and Anthropic models provide alternative intelligence levels for text translations.',
+        voicePreferenceDesc: 'You can change the translator\'s voice to "Female" or "Male" from the Settings menu. This setting is valid when Gemini Live mode is active and determines the tone of the translations.',
+        offlineMode: 'Offline Mode',
+        offlineModeDesc: 'When you don\'t have internet, you can activate "Offline Mode" from Settings. For this, you must have previously downloaded the relevant language packs.',
+        listeningMode: 'Listening Mode',
+        developerBy: 'Developed by Ali TELLIOGLU',
+        keyboardInput: 'Keyboard Input',
+        write: 'Write',
+        backToArchive: 'Back to Archive',
+        translationOf: '{lang} Translation',
+        noRecordings: 'No recordings yet',
+        analyzingProduct: 'Analyzing Product...',
+        retry: 'Retry',
+        listenAction: 'Listen',
+        translating: 'Translating...',
+        translationWithLang: 'Translation ({lang})',
+        listeningWithLang: 'Listening ({lang})',
+        startSpeaking: 'START SPEAKING',
+        you: 'You',
+        translator: 'Translator',
+        detecting: 'DETECTING...',
+        typeInLang: 'Type in {lang}...',
+        update17Title: 'Version Update',
+        update17Desc1: 'App version upgraded to v1.7.',
+        update17Desc2: 'All translation keys and texts have been checked and updated.',
+        update16Title: 'Full Internationalization',
+        update16Desc1: 'Full English support completed for all buttons, menus, and notifications.',
+        update16Desc2: 'All static texts throughout the application have been made dynamic.',
+        update15Title: 'Language Support',
+        update15Desc1: 'Basic English language support added for the interface.',
+        update15Desc2: 'Dynamic translation system (i18n) infrastructure established.',
+        update13Title: 'Info and Guide',
+        update13Desc1: 'User Guide and Updates sections added.',
+        update13Desc2: 'Voice Preference (Female/Male) feature introduced.',
+        update13Desc3: 'Haptic feedback support added.',
+        update13Desc4: 'Typo fixes ("Developer" signature).',
+        update12Title: 'Multi-Model Support',
+        update12Desc1: 'OpenAI (GPT-4o) and Anthropic (Claude 3.5 Sonnet) support added.',
+        update12Desc2: 'Multi-API key management and provider selection introduced.',
+        cameraError: 'Camera access denied.',
+        apiKeyMissing: 'API Key not found.',
+        geminiKeyMissing: 'Gemini API key not found. Please enter it in settings.',
+        openaiKeyMissing: 'OpenAI API key not found. Please enter it in settings.',
+        anthropicKeyMissing: 'Anthropic API key not found. Please enter it in settings.',
+        analysisError: 'Image could not be analyzed.',
+        translationError: 'An error occurred during translation.',
+        audioError: 'An error occurred while playing audio.',
+        connectionError: 'Connection Error',
+        update11Title: 'Visual and Branding',
+        update11Desc1: 'App name updated to "Ai Live Translate".',
+        update11Desc2: '"Developer by Ali TELLIOGLU" signature added.',
+        update11Desc3: 'New logo and visual adjustments made.',
+        update10Title: 'Initial Release',
+        update10Desc1: 'Real-time simultaneous translation with Gemini Live API.',
+        update10Desc2: 'Offline mode and language packs support.',
+        update10Desc3: 'Voice and text translation features.',
+        systemPromptLive: `You are ONLY a simultaneous translator. YOUR TASK: Translate everything you hear in {target} INSTANTLY and LITERALLY into {source}. 
+             ABSOLUTELY do not add your own comments, answer questions, give advice, or engage in conversation. 
+             If you hear a question, translate it into {source} instead of answering it. 
+             Only speak the translation. Say nothing else.`,
+        systemPromptAuto: `You are ONLY a simultaneous translator. YOUR TASK: Translate the language you hear into the other language INSTANTLY and LITERALLY. 
+             If the language you hear is {source}, translate it to {target}. 
+             If the language you hear is {target}, translate it to {source}. 
+             ABSOLUTELY do not add your own comments, answer questions, give advice, or engage in conversation. 
+             Only speak the translation. Say nothing else.`,
+        systemPromptText: `You are a translator. YOUR TASK: Translate the text in "{source}" to "{target}". ONLY return the translation, do not provide any other explanation.`,
+        photoPrompt: `Analyze the product in this image. 
+              1. Translate the text or product name in the image into "{target}".
+              2. Provide very brief and concise information (maximum 2 sentences) about the product in "{target}".
+              Provide the response in this JSON format: {"translation": "translation", "info": "info"}`,
+        emptySession: 'Empty Session',
+        noAudioData: 'No audio data received.',
+        apiKeyMissingShort: 'API Key missing.',
+        noTranslationReceived: 'No translation received.',
       }
     };
-    return translations[uiLanguage][key] || key;
+    
+    let text = translations[uiLanguage][key] || key;
+    if (params) {
+      Object.entries(params).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, v);
+      });
+    }
+    return text;
   };
   const [isNoiseMode, setIsNoiseMode] = useState(false);
   const [isHoldingMic, setIsHoldingMic] = useState(false);
@@ -237,7 +470,7 @@ const App: React.FC = () => {
       triggerHaptic();
     } catch (err) {
       console.error("Camera error:", err);
-      setError("Kamera erişimi sağlanamadı.");
+      setError(t('cameraError'));
     }
   };
 
@@ -284,7 +517,7 @@ const App: React.FC = () => {
 
     try {
       const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
-      if (!apiKey) throw new Error("API Anahtarı bulunamadı.");
+      if (!apiKey) throw new Error(t('apiKeyMissing'));
 
       const ai = new GoogleGenAI({ apiKey });
       const base64Data = base64Image.split(',')[1];
@@ -293,11 +526,7 @@ const App: React.FC = () => {
         model: 'gemini-3-flash-preview',
         contents: {
           parts: [
-            { text: `Bu görseldeki ürünü analiz et. 
-              1. Görseldeki metinleri veya ürün ismini "${targetDetails.name}" diline çevir.
-              2. Ürün hakkında "${targetDetails.name}" dilinde çok kısa ve öz (maksimum 2 cümle) bilgi ver.
-              Yanıtı şu JSON formatında ver: {"translation": "çeviri", "info": "bilgi"}` 
-            },
+            { text: t('photoPrompt', { target: targetDetails.name }) },
             { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
           ]
         },
@@ -310,7 +539,7 @@ const App: React.FC = () => {
       setAnalysisResult(result);
     } catch (err: any) {
       console.error("Analysis error:", err);
-      setError("Görsel analiz edilemedi.");
+      setError(t('analysisError'));
     } finally {
       setIsAnalyzing(false);
     }
@@ -343,41 +572,41 @@ const App: React.FC = () => {
 
       if (selectedProvider === AIProvider.GEMINI) {
         const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
-        if (!apiKey) throw new Error("Gemini API anahtarı bulunamadı. Lütfen ayarlardan girin.");
+        if (!apiKey) throw new Error(t('geminiKeyMissing'));
         
         const ai = new GoogleGenAI({ apiKey });
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: textToTranslate,
           config: {
-            systemInstruction: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
+            systemInstruction: t('systemPromptText', { source: sourceDetails.name, target: targetDetails.name }),
           }
         });
         translatedText = response.text || '';
       } else if (selectedProvider === AIProvider.OPENAI) {
-        if (!apiKeys.openai) throw new Error("OpenAI API anahtarı bulunamadı. Lütfen ayarlardan girin.");
+        if (!apiKeys.openai) throw new Error(t('openaiKeyMissing'));
         const openai = new OpenAI({ apiKey: apiKeys.openai, dangerouslyAllowBrowser: true });
         const response = await openai.chat.completions.create({
           model: 'gpt-4o',
           messages: [
-            { role: 'system', content: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.` },
+            { role: 'system', content: t('systemPromptText', { source: sourceDetails.name, target: targetDetails.name }) },
             { role: 'user', content: textToTranslate }
           ]
         });
         translatedText = response.choices[0].message.content || '';
       } else if (selectedProvider === AIProvider.ANTHROPIC) {
-        if (!apiKeys.anthropic) throw new Error("Anthropic API anahtarı bulunamadı. Lütfen ayarlardan girin.");
+        if (!apiKeys.anthropic) throw new Error(t('anthropicKeyMissing'));
         const anthropic = new Anthropic({ apiKey: apiKeys.anthropic, dangerouslyAllowBrowser: true });
         const response = await anthropic.messages.create({
           model: 'claude-3-5-sonnet-20240620',
           max_tokens: 1024,
-          system: `Sen bir tercümansın. GÖREVİN: "${sourceDetails.name}" dilindeki metni "${targetDetails.name}" diline çevirmek. SADECE çeviriyi döndür, başka açıklama yapma.`,
+          system: t('systemPromptText', { source: sourceDetails.name, target: targetDetails.name }),
           messages: [{ role: 'user', content: textToTranslate }]
         });
         translatedText = (response.content[0] as any).text || '';
       }
       
-      if (!translatedText) throw new Error("Çeviri alınamadı.");
+      if (!translatedText) throw new Error(t('noTranslationReceived'));
       
       setMessages(prev => [...prev, 
         { id: Date.now().toString(), role: 'user', text: textToTranslate, timestamp: new Date(), isFinal: true },
@@ -386,7 +615,7 @@ const App: React.FC = () => {
       setTextInput(''); // Only clear on success
     } catch (error: any) {
       console.error("Text translation error:", error);
-      setError(error.message || "Çeviri sırasında bir hata oluştu.");
+      setError(error.message || t('translationError'));
     } finally {
       setIsTextTranslating(false);
     }
@@ -400,7 +629,7 @@ const App: React.FC = () => {
 
     try {
       const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
-      if (!apiKey) throw new Error("API Anahtarı bulunamadı.");
+      if (!apiKey) throw new Error(t('apiKeyMissing'));
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
@@ -432,11 +661,11 @@ const App: React.FC = () => {
         };
         source.start();
       } else {
-        throw new Error("Ses verisi alınamadı.");
+        throw new Error(t('noAudioData'));
       }
     } catch (err: any) {
       console.error("TTS Error:", err);
-      setError(err.message || "Ses çalınırken bir hata oluştu.");
+      setError(err.message || t('audioError'));
       setIsSpeechPlaying(null);
     }
   };
@@ -457,7 +686,7 @@ const App: React.FC = () => {
       if (!aiClientRef.current) {
         const stored = localStorage.getItem('gemini_api_key');
         if (stored) aiClientRef.current = new GoogleGenAI({ apiKey: stored });
-        else throw new Error("API Anahtarı eksik.");
+        else throw new Error(t('apiKeyMissingShort'));
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -537,7 +766,7 @@ const App: React.FC = () => {
           onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
           onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
           onclose: stopConnection,
-          onerror: (e) => { console.error(e); setError("Bağlantı Hatası"); stopConnection(); }
+          onerror: (e) => { console.error(e); setError(t('connectionError')); stopConnection(); }
         }
       });
       sessionPromiseRef.current = sessionPromise;
@@ -590,7 +819,7 @@ const App: React.FC = () => {
       id: Date.now().toString(),
       date: new Date().toISOString(),
       targetLang: targetLang,
-      preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : "Boş Oturum",
+      preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : t('emptySession'),
       messages: [...messages]
     };
     const updated = [newSession, ...savedSessions];
@@ -626,7 +855,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <span className="font-bold text-lg leading-none">Ai Live Translate</span>
-            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? 'Dinleme Modu' : 'Developer by Ali TELLIOGLU'}</span>
+            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? t('listeningMode') : t('developerBy')}</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -641,10 +870,10 @@ const App: React.FC = () => {
               triggerHaptic();
             }} 
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${viewMode === 'photo' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-            title="Foto Çeviri"
+            title={t('photoTranslation')}
           >
             <Camera size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Foto</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('photo')}</span>
           </button>
           <button 
             onClick={() => {
@@ -652,10 +881,10 @@ const App: React.FC = () => {
               triggerHaptic();
             }} 
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${isKeyboardVisible ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-            title="Klavye Girişi"
+            title={t('keyboardInput')}
           >
             <Keyboard size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Yaz</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{t('write')}</span>
           </button>
           {!isListenModeActive && viewMode !== 'archive' && (
             <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
@@ -687,11 +916,11 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
             {openedArchive ? (
               <div className="space-y-4 animate-fade-in">
-                <button onClick={() => setOpenedArchive(null)} className="text-blue-400 text-sm flex items-center gap-1 mb-2"><ChevronRight className="rotate-180" size={16}/> Arşive Dön</button>
+                <button onClick={() => setOpenedArchive(null)} className="text-blue-400 text-sm flex items-center gap-1 mb-2"><ChevronRight className="rotate-180" size={16}/> {t('backToArchive')}</button>
                 <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
                    <div>
                      <h3 className="font-bold text-lg">{new Date(openedArchive.date).toLocaleDateString()}</h3>
-                     <p className="text-xs text-slate-500">{getLangDetails(openedArchive.targetLang).name} Tercümesi</p>
+                     <p className="text-xs text-slate-500">{t('translationOf', { lang: getLangDetails(openedArchive.targetLang).name })}</p>
                    </div>
                    <button onClick={() => deleteArchivedSession(openedArchive.id)} className="p-3 bg-red-500/10 text-red-400 rounded-xl"><Trash2 size={20}/></button>
                 </div>
@@ -713,9 +942,9 @@ const App: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                <h2 className="text-xl font-bold px-1 mb-4 flex items-center gap-2"><FolderOpen size={20} className="text-blue-400"/> Kayıtlı Oturumlar</h2>
+                <h2 className="text-xl font-bold px-1 mb-4 flex items-center gap-2"><FolderOpen size={20} className="text-blue-400"/> {t('savedSessions')}</h2>
                 {savedSessions.length === 0 ? (
-                  <div className="py-20 text-center opacity-30 flex flex-col items-center"><ScrollText size={48} /><p className="mt-4">Henüz kayıt yok</p></div>
+                  <div className="py-20 text-center opacity-30 flex flex-col items-center"><ScrollText size={48} /><p className="mt-4">{t('noRecordings')}</p></div>
                 ) : (
                   savedSessions.map(s => (
                     <div key={s.id} onClick={() => setOpenedArchive(s)} className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-slate-600 transition-all group">
@@ -763,7 +992,7 @@ const App: React.FC = () => {
                   {isAnalyzing ? (
                     <div className="space-y-4 flex flex-col items-center">
                       <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                      <p className="text-emerald-400 font-bold animate-pulse tracking-widest uppercase text-xs">Ürün Analiz Ediliyor...</p>
+                      <p className="text-emerald-400 font-bold animate-pulse tracking-widest uppercase text-xs">{t('analyzingProduct')}</p>
                     </div>
                   ) : analysisResult ? (
                     <div className="bg-slate-900/90 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-300 max-h-[80vh] overflow-y-auto">
@@ -777,13 +1006,13 @@ const App: React.FC = () => {
                           onClick={() => setCapturedImage(null)}
                           className="flex-1 py-4 bg-slate-800 rounded-2xl font-bold text-sm flex items-center justify-center gap-2"
                         >
-                          <RefreshCw size={16} /> Tekrar
+                          <RefreshCw size={16} /> {t('retry')}
                         </button>
                         <button 
                           onClick={() => handlePlaySpeech(analysisResult.translation + ". " + analysisResult.info, 'photo-result')}
                           className={`flex-1 py-4 bg-emerald-600 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 ${isSpeechPlaying === 'photo-result' ? 'animate-pulse' : ''}`}
                         >
-                          <Volume2 size={16} /> Dinle
+                          <Volume2 size={16} /> {t('listenAction')}
                         </button>
                       </div>
                     </div>
@@ -797,19 +1026,19 @@ const App: React.FC = () => {
           <div className="flex-1 overflow-y-auto px-6 py-10 space-y-10 no-scrollbar">
              {realtimeOutput && (
                <div className="animate-fade-in">
-                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çevriliyor...</span>
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">{t('translating')}</span>
                  <p className="text-4xl font-bold text-orange-200 leading-tight">{realtimeOutput}</p>
                </div>
              )}
              {[...messages].filter(m => m.role === 'model').reverse().map(m => (
                <div key={m.id} className="animate-fade-in-up">
-                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">Çeviri ({sourceDetails.short})</span>
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-500 block mb-2">{t('translationWithLang', { lang: sourceDetails.short })}</span>
                  <p className="text-4xl font-bold leading-tight drop-shadow-sm">{m.text}</p>
                </div>
              ))}
              {realtimeInput && (
                <div className="opacity-40 animate-pulse">
-                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 block mb-2">Dinleniyor ({targetDetails.short})</span>
+                 <span className="text-[10px] uppercase font-bold tracking-widest text-orange-400 block mb-2">{t('listeningWithLang', { lang: targetDetails.short })}</span>
                  <p className="text-2xl italic leading-relaxed">{realtimeInput}...</p>
                </div>
              )}
@@ -843,12 +1072,12 @@ const App: React.FC = () => {
             {messages.length === 0 && !realtimeInput && (
               <div className="h-full flex flex-col items-center justify-center opacity-10 space-y-4 py-20">
                 <Globe size={80} />
-                <p className="text-center font-bold">KONUŞMAYA BAŞLA</p>
+                <p className="text-center font-bold">{t('startSpeaking')}</p>
               </div>
             )}
             {messages.map(m => (
               <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-start' : 'items-end'}`}>
-                <span className="text-[10px] text-slate-500 mb-1 px-1">{m.role === 'user' ? 'Siz' : 'Tercüman'}</span>
+                <span className="text-[10px] text-slate-500 mb-1 px-1">{m.role === 'user' ? t('you') : t('translator')}</span>
                 <div className={`max-w-[85%] p-4 rounded-2xl shadow-sm ${m.role === 'user' ? 'bg-slate-800/80 text-slate-200 rounded-tl-sm' : 'bg-emerald-600 text-white rounded-tr-sm'}`}>
                   <p className="text-[15px] leading-relaxed">{m.text}</p>
                   {m.role === 'model' && (
@@ -864,7 +1093,7 @@ const App: React.FC = () => {
             ))}
             {realtimeInput && (
               <div className="flex flex-col items-start opacity-60">
-                <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse">ALGILANIYOR...</span>
+                <span className="text-[10px] text-blue-400 mb-1 px-1 animate-pulse">{t('detecting')}</span>
                 <div className="max-w-[85%] p-4 bg-slate-800/30 rounded-2xl rounded-tl-sm border border-slate-700 border-dashed text-slate-300">
                   {realtimeInput}
                 </div>
@@ -872,7 +1101,7 @@ const App: React.FC = () => {
             )}
             {realtimeOutput && (
               <div className="flex flex-col items-end opacity-60">
-                <span className="text-[10px] text-emerald-400 mb-1 px-1 animate-pulse">ÇEVRİLİYOR...</span>
+                <span className="text-[10px] text-emerald-400 mb-1 px-1 animate-pulse">{t('translating')}</span>
                 <div className="max-w-[85%] p-4 bg-emerald-900/20 rounded-2xl rounded-tr-sm border border-emerald-500/30 border-dashed text-emerald-200">
                   {realtimeOutput}
                 </div>
@@ -896,7 +1125,7 @@ const App: React.FC = () => {
                   value={textInput}
                   onChange={e => setTextInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleTextSubmit()}
-                  placeholder={`${sourceDetails.name} dilinde yazın...`}
+                  placeholder={t('typeInLang', { lang: sourceDetails.name })}
                   className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 outline-none transition-all shadow-xl"
                 />
                 <button 
@@ -1003,11 +1232,11 @@ const App: React.FC = () => {
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
               <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-8 text-center">
                   <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mb-6 mx-auto"><Save size={32} /></div>
-                  <h3 className="text-2xl font-bold mb-2">Oturumu Kaydet?</h3>
-                  <p className="text-slate-500 text-sm mb-8 leading-relaxed">Bu görüşmedeki çevirileri daha sonra incelemek için arşive eklemek ister misiniz?</p>
+                  <h3 className="text-2xl font-bold mb-2">{t('saveSessionTitle')}</h3>
+                  <p className="text-slate-500 text-sm mb-8 leading-relaxed">{t('saveSessionDesc')}</p>
                   <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => { setMessages([]); setShowSaveModal(false); stopConnection(); }} className="py-4 rounded-2xl bg-slate-800 font-bold">Sil</button>
-                      <button onClick={saveSession} className="py-4 rounded-2xl bg-blue-600 font-bold">Kaydet</button>
+                      <button onClick={() => { setMessages([]); setShowSaveModal(false); stopConnection(); }} className="py-4 rounded-2xl bg-slate-800 font-bold">{t('delete')}</button>
+                      <button onClick={saveSession} className="py-4 rounded-2xl bg-blue-600 font-bold">{t('save')}</button>
                   </div>
               </div>
           </div>
@@ -1018,8 +1247,8 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-8 animate-fade-in">
            <div className="w-full max-w-sm text-center">
               <div className="w-20 h-20 bg-blue-600/10 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl"><Key size={40} className="text-blue-500" /></div>
-              <h1 className="text-3xl font-bold mb-2">Hoş Geldiniz</h1>
-              <p className="text-slate-500 mb-8 text-sm">Devam etmek için bir yapay zeka sağlayıcısı seçin ve API anahtarınızı girin.</p>
+              <h1 className="text-3xl font-bold mb-2">{t('welcome')}</h1>
+              <p className="text-slate-500 mb-8 text-sm">{t('welcomeDesc')}</p>
               
               <div className="flex gap-2 mb-6">
                 {Object.values(AIProvider).map(p => (
@@ -1038,7 +1267,7 @@ const App: React.FC = () => {
                   type="password" 
                   value={tempApiKeyInput} 
                   onChange={e => setTempApiKeyInput(e.target.value)} 
-                  placeholder={`${tempProviderInput} API Anahtarı`} 
+                  placeholder={t('apiKeyPlaceholder', { provider: tempProviderInput })} 
                   className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 text-white focus:ring-2 focus:ring-blue-600 outline-none transition-all" 
                 />
               </div>
@@ -1054,13 +1283,13 @@ const App: React.FC = () => {
                 }} 
                 className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-bold text-lg shadow-xl shadow-blue-900/20 active:scale-[0.98] transition-all"
               >
-                Uygulamayı Başlat
+                {t('startApp')}
               </button>
               
               <div className="mt-8 space-y-2">
-                {tempProviderInput === AIProvider.GEMINI && <a href="https://aistudio.google.com/app/apikey" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">Gemini anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
-                {tempProviderInput === AIProvider.OPENAI && <a href="https://platform.openai.com/api-keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">OpenAI anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
-                {tempProviderInput === AIProvider.ANTHROPIC && <a href="https://console.anthropic.com/settings/keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">Anthropic anahtarı oluştur <ExternalLink size={10} className="inline ml-1" /></a>}
+                {tempProviderInput === AIProvider.GEMINI && <a href="https://aistudio.google.com/app/apikey" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">{t('createKeyGemini')} <ExternalLink size={10} className="inline ml-1" /></a>}
+                {tempProviderInput === AIProvider.OPENAI && <a href="https://platform.openai.com/api-keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">{t('createKeyOpenAI')} <ExternalLink size={10} className="inline ml-1" /></a>}
+                {tempProviderInput === AIProvider.ANTHROPIC && <a href="https://console.anthropic.com/settings/keys" target="_blank" className="block text-slate-500 text-xs hover:text-white transition-colors">{t('createKeyAnthropic')} <ExternalLink size={10} className="inline ml-1" /></a>}
               </div>
            </div>
         </div>
@@ -1084,15 +1313,15 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-blue-600/20 rounded-xl group-hover:bg-blue-600/40 transition-colors"><FolderOpen size={24} className="text-blue-400" /></div>
                   <div className="text-left">
-                    <p className="font-bold">Kayıtlı Oturumlar</p>
-                    <p className="text-xs text-slate-500">Geçmiş görüşmeleri incele</p>
+                    <p className="font-bold">{t('savedSessions')}</p>
+                    <p className="text-xs text-slate-500">{t('savedSessionsDesc')}</p>
                   </div>
                 </div>
                 <ChevronRight size={20} className="text-slate-600" />
               </button>
 
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Yapay Zeka Modeli</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{t('aiModel')}</h3>
                 <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-6">
                   <div className="flex gap-2">
                     {Object.values(AIProvider).map(p => (
@@ -1113,7 +1342,7 @@ const App: React.FC = () => {
                   <div className="space-y-4">
                     {Object.values(AIProvider).map(p => (
                       <div key={p} className="relative">
-                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block px-1">{p} API Anahtarı</label>
+                        <label className="text-[10px] text-slate-500 uppercase font-bold mb-1 block px-1">{t('aiKeyLabel', { provider: p })}</label>
                         <input 
                           type="password"
                           value={apiKeys[p.toLowerCase() as keyof APIKeys] || ''}
@@ -1122,7 +1351,7 @@ const App: React.FC = () => {
                             setApiKeys(newKeys);
                             localStorage.setItem('ai_api_keys', JSON.stringify(newKeys));
                           }}
-                          placeholder={`${p} anahtarını girin`}
+                          placeholder={t('enterApiKey', { provider: p })}
                           className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm text-white focus:ring-1 focus:ring-blue-600 outline-none"
                         />
                       </div>
@@ -1133,7 +1362,7 @@ const App: React.FC = () => {
                     <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex gap-3 items-start">
                       <Zap size={16} className="text-amber-500 shrink-0 mt-0.5" />
                       <p className="text-[10px] text-amber-200/70 leading-relaxed">
-                        <strong>Not:</strong> Sesli canlı çeviri (Canlı Mod) şu an sadece Gemini ile çalışmaktadır. Diğer modeller sadece klavye girişi ile yapılan çevirilerde kullanılabilir.
+                        <strong>{t('liveNoteTitle')}</strong> {t('liveNoteDesc')}
                       </p>
                     </div>
                   )}
@@ -1158,7 +1387,7 @@ const App: React.FC = () => {
                 <div className="bg-slate-800/30 p-5 rounded-3xl border border-slate-800 space-y-4">
                    <div className="flex items-center gap-2 px-1">
                        <User size={16} className="text-blue-400" />
-                       <span className="font-bold text-slate-200 text-sm uppercase tracking-widest">Ses Tercihi</span>
+                       <span className="font-bold text-slate-200 text-sm uppercase tracking-widest">{t('voicePreference')}</span>
                    </div>
                    <div className="grid grid-cols-2 gap-3">
                        <button 
@@ -1166,45 +1395,45 @@ const App: React.FC = () => {
                          className={`py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all border ${voiceType === 'female' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
                        >
                            <span className="text-2xl">👩</span>
-                           <span className="font-bold text-xs">Kadın</span>
+                           <span className="font-bold text-xs">{t('female')}</span>
                        </button>
                        <button 
                          onClick={() => handleVoiceChange('male')}
                          className={`py-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all border ${voiceType === 'male' ? 'bg-blue-600 border-blue-500 text-white shadow-lg' : 'bg-slate-900 border-slate-800 text-slate-400'}`}
                        >
                            <span className="text-2xl">👨</span>
-                           <span className="font-bold text-xs">Erkek</span>
+                           <span className="font-bold text-xs">{t('male')}</span>
                        </button>
                    </div>
-                   <p className="text-[10px] text-slate-500 px-1 italic">Çevirmen sesi (Sadece Gemini Live modunda geçerlidir).</p>
+                   <p className="text-[10px] text-slate-500 px-1 italic">{t('voiceNote')}</p>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Bilgi</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{t('info')}</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <button onClick={() => setShowUpdates(true)} className="p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex flex-col items-center gap-2 transition-all group">
                     <div className="p-3 bg-blue-600/20 rounded-xl group-hover:bg-blue-600/40 transition-colors"><History size={20} className="text-blue-400" /></div>
-                    <span className="text-xs font-bold">Güncellemeler</span>
+                    <span className="text-xs font-bold">{t('updates')}</span>
                   </button>
                   <button onClick={() => setShowGuide(true)} className="p-5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-2xl flex flex-col items-center gap-2 transition-all group">
                     <div className="p-3 bg-emerald-600/20 rounded-xl group-hover:bg-emerald-600/40 transition-colors"><BookOpen size={20} className="text-emerald-400" /></div>
-                    <span className="text-xs font-bold">Kullanım Kılavuzu</span>
+                    <span className="text-xs font-bold">{t('guideTitle')}</span>
                   </button>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">Güvenlik</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest px-1">{t('security')}</h3>
                 <button 
                   onClick={() => { localStorage.removeItem('ai_api_keys'); localStorage.removeItem('gemini_api_key'); window.location.reload(); }} 
                   className="w-full p-5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors border border-red-500/10"
                 >
-                  <LogOut size={20} /> Tüm Verileri Temizle ve Çıkış Yap
+                  <LogOut size={20} /> {t('clearData')}
                 </button>
               </div>
               
-              <div className="text-center text-[10px] text-slate-600 pt-4 uppercase tracking-[0.2em]">Ai Live Translate v1.0 • Stable Build</div>
+              <div className="text-center text-[10px] text-slate-600 pt-4 uppercase tracking-[0.2em]">{t('stableBuild')}</div>
            </div>
         </div>
       )}
@@ -1214,20 +1443,46 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-8 border-b border-slate-800 flex justify-between items-center">
-              <h2 className="text-2xl font-bold flex items-center gap-3"><History className="text-blue-400" /> Güncellemeler</h2>
+              <h2 className="text-2xl font-bold flex items-center gap-3"><History className="text-blue-400" /> {t('updatesTitle')}</h2>
               <button onClick={() => setShowUpdates(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X /></button>
             </div>
             <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
               <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-400 font-bold">v1.4</span>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">12 Mart 2026</span>
+                  <span className="text-blue-400 font-bold">v1.7</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">19 Mart 2026</span>
                 </div>
-                <h4 className="font-bold text-lg">Foto Çeviri Özelliği</h4>
+                <h4 className="font-bold text-lg">{t('update17Title')}</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
-                  <li>Kamera ile ürün/metin fotoğrafı çekip anlık çeviri yapma özelliği eklendi.</li>
-                  <li>Görsel analizi ile ürün hakkında kısa bilgi alma özelliği getirildi.</li>
+                  <li>{t('update17Desc1')}</li>
+                  <li>{t('update17Desc2')}</li>
+                </ul>
+              </div>
+
+              <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-400 font-bold">v1.6</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">19 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">{t('update16Title')}</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>{t('update16Desc1')}</li>
+                  <li>{t('update16Desc2')}</li>
+                </ul>
+              </div>
+
+              <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
+                <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-400 font-bold">v1.5</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">19 Mart 2026</span>
+                </div>
+                <h4 className="font-bold text-lg">{t('update15Title')}</h4>
+                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
+                  <li>{t('update15Desc1')}</li>
+                  <li>{t('update15Desc2')}</li>
                 </ul>
               </div>
 
@@ -1237,12 +1492,12 @@ const App: React.FC = () => {
                   <span className="text-blue-400 font-bold">v1.3</span>
                   <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
                 </div>
-                <h4 className="font-bold text-lg">Bilgi ve Rehber</h4>
+                <h4 className="font-bold text-lg">{t('update13Title')}</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
-                  <li>Kullanım Kılavuzu ve Güncellemeler bölümleri eklendi.</li>
-                  <li>Ses Tercihi (Kadın/Erkek) özelliği getirildi.</li>
-                  <li>Haptik geri bildirim desteği eklendi.</li>
-                  <li>Yazım hataları düzeltildi ("Developer" imzası).</li>
+                  <li>{t('update13Desc1')}</li>
+                  <li>{t('update13Desc2')}</li>
+                  <li>{t('update13Desc3')}</li>
+                  <li>{t('update13Desc4')}</li>
                 </ul>
               </div>
 
@@ -1252,10 +1507,10 @@ const App: React.FC = () => {
                   <span className="text-slate-400 font-bold">v1.2</span>
                   <span className="text-[10px] text-slate-500 uppercase tracking-widest">11 Mart 2026</span>
                 </div>
-                <h4 className="font-bold text-lg">Çoklu Model Desteği</h4>
+                <h4 className="font-bold text-lg">{t('update12Title')}</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
-                  <li>OpenAI (GPT-4o) ve Anthropic (Claude 3.5 Sonnet) desteği eklendi.</li>
-                  <li>Çoklu API anahtarı yönetimi ve sağlayıcı seçimi getirildi.</li>
+                  <li>{t('update12Desc1')}</li>
+                  <li>{t('update12Desc2')}</li>
                 </ul>
               </div>
               
@@ -1296,59 +1551,59 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl flex flex-col max-h-[80vh]">
             <div className="p-8 border-b border-slate-800 flex justify-between items-center">
-              <h2 className="text-2xl font-bold flex items-center gap-3"><BookOpen className="text-emerald-400" /> Kullanım Kılavuzu</h2>
+              <h2 className="text-2xl font-bold flex items-center gap-3"><BookOpen className="text-emerald-400" /> {t('guideTitle')}</h2>
               <button onClick={() => setShowGuide(false)} className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 transition-colors"><X /></button>
             </div>
             <div className="p-8 overflow-y-auto space-y-8 no-scrollbar">
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Foto Çeviri</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('photoTranslation')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Üst menüdeki "Foto" butonuna basarak kamerayı açın. Ürünün veya metnin fotoğrafını çekin. Yapay zeka görseli analiz ederek metni çevirecek ve ürün hakkında kısa bilgi verecektir.
+                  {t('photoTranslationDesc')}
                 </p>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Sesli Çeviri (Canlı Mod)</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('voiceTranslationLive')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Ana ekrandaki büyük mikrofon butonuna basarak canlı çeviriyi başlatın. Konuştuğunuzda sistem sesinizi otomatik olarak algılar ve saniyeler içinde hedef dile çevirerek sesli olarak seslendirir.
+                  {t('voiceTranslationLiveDesc')}
                 </p>
                 <div className="p-3 bg-slate-800/50 rounded-xl text-xs text-slate-400 italic border-l-2 border-emerald-500">
-                  İpucu: Gürültülü ortamlarda Ayarlar'dan "Gürültü Modu"nu açarak sadece butona basılı tuttuğunuzda dinlemesini sağlayabilirsiniz.
+                  {t('tip')} {t('noiseModeTip')}
                 </div>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yazılı Çeviri</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('textTranslation')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Üst menüdeki "Yaz" butonuna basarak klavyeyi açabilirsiniz. Metninizi yazıp gönderdiğinizde seçili olan yapay zeka modeli (Gemini, OpenAI veya Anthropic) tarafından çeviri yapılır.
+                  {t('textTranslationDesc')}
                 </p>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yüz Yüze (Split) Modu</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('splitMode')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Üst menüdeki kare ikonuna basarak ekranı ikiye bölebilirsiniz. Bu mod, masada karşılıklı oturan kişiler için tasarlanmıştır. Üst kısım karşıdaki kişiye göre 180 derece ters döner, böylece her iki taraf da çeviriyi kendi yönünden okuyabilir.
+                  {t('splitModeDesc')}
                 </p>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Yapay Zeka Modelleri</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('aiModelsTitle')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Ayarlar menüsünden çeviri yapacak beyni seçebilirsiniz. Gemini Live API en hızlı sesli deneyimi sunarken, OpenAI ve Anthropic modelleri yazılı çevirilerde alternatif zeka seviyeleri sunar.
+                  {t('aiModelsDesc')}
                 </p>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Ses Tercihi</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('voicePreference')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  Ayarlar menüsünden çevirmenin sesini "Kadın" veya "Erkek" olarak değiştirebilirsiniz. Bu ayar Gemini Live modu aktifken geçerlidir ve çevirilerin seslendirilme tonunu belirler.
+                  {t('voicePreferenceDesc')}
                 </p>
               </section>
 
               <section className="space-y-3">
-                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">Çevrimdışı Mod</h4>
+                <h4 className="text-emerald-400 font-bold uppercase text-xs tracking-widest">{t('offlineMode')}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">
-                  İnternetiniz olmadığında Ayarlar'dan "Çevrimdışı Mod"u aktif edebilirsiniz. Bunun için önceden ilgili dil paketlerini indirmiş olmanız gerekir.
+                  {t('offlineModeDesc')}
                 </p>
               </section>
             </div>
