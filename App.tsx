@@ -564,6 +564,7 @@ const App: React.FC = () => {
   const handlePTTStart = (micId: 'A' | 'B') => {
       if (micId === 'A') setIsHoldingMicA(true);
       else setIsHoldingMicB(true);
+      
       if (isConnected) {
           isTransmittingRef.current = true;
           triggerHaptic();
@@ -571,10 +572,14 @@ const App: React.FC = () => {
   };
 
   const handlePTTEnd = (micId: 'A' | 'B') => {
+      const newHoldingA = micId === 'A' ? false : isHoldingMicA;
+      const newHoldingB = micId === 'B' ? false : isHoldingMicB;
+      
       if (micId === 'A') setIsHoldingMicA(false);
       else setIsHoldingMicB(false);
+      
       if (isConnected) {
-          isTransmittingRef.current = false;
+          isTransmittingRef.current = newHoldingA || newHoldingB;
       }
   };
 
