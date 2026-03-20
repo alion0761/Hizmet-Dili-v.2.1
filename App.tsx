@@ -391,6 +391,7 @@ const App: React.FC = () => {
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const aiClientRef = useRef<GoogleGenAI | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const transmitOnConnectRef = useRef(false);
   const activeSessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
   const currentInputTranscription = useRef('');
@@ -552,6 +553,7 @@ const App: React.FC = () => {
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
+    transmitOnConnectRef.current = false;
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
     if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
@@ -568,6 +570,9 @@ const App: React.FC = () => {
       if (isConnected) {
           isTransmittingRef.current = true;
           triggerHaptic();
+      } else {
+          transmitOnConnectRef.current = true;
+          startLiveSession('bidirectional');
       }
   };
 
@@ -789,7 +794,15 @@ const App: React.FC = () => {
           }
         },
         callbacks: {
-          onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
+          onopen: () => { 
+              setIsConnecting(false); 
+              setIsConnected(true); 
+              triggerHaptic(); 
+              if (transmitOnConnectRef.current) {
+                  isTransmittingRef.current = true;
+                  transmitOnConnectRef.current = false;
+              }
+          },
           onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
           onclose: stopConnection,
           onerror: (e) => { console.error(e); setError(t('connectionError')); stopConnection(); }
@@ -913,7 +926,14 @@ const App: React.FC = () => {
             <span className="text-[10px] font-bold uppercase tracking-wider">{t('write')}</span>
           </button>
           {!isListenModeActive && viewMode !== 'archive' && (
-            <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+            <button 
+                onClick={() => {
+                    const nextMode = viewMode === 'chat' ? 'split' : 'chat';
+                    setViewMode(nextMode);
+                    if (nextMode === 'split') setIsNoiseMode(true);
+                }} 
+                className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            >
               {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
             </button>
           )}
