@@ -139,7 +139,7 @@ const App: React.FC = () => {
         updates: 'Güncellemeler',
         security: 'Güvenlik',
         clearData: 'Tüm Verileri Temizle ve Çıkış Yap',
-        stableBuild: 'Ai Live Translate v1.8 • Stable Build',
+        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
         updatesTitle: 'Güncellemeler',
         guideTitle: 'Kullanım Kılavuzu',
         photoTranslation: 'Foto Çeviri',
@@ -175,9 +175,9 @@ const App: React.FC = () => {
         translator: 'Tercüman',
         detecting: 'ALGILANIYOR...',
         typeInLang: '{lang} dilinde yazın...',
-        update18Title: 'Versiyon Güncellemesi',
-        update18Desc1: 'Gelişmiş Bas-Konuş (PTT) Sistemi eklendi.',
-        update18Desc2: 'Her iki dil için bağımsız PTT kontrolü ve optimize edilmiş ses iletimi.',
+        update17Title: 'Versiyon Güncellemesi',
+        update17Desc1: "Uygulama versiyonu v1.7'ye yükseltildi.",
+        update17Desc2: "Tüm çeviri anahtarları ve metinler kontrol edilerek güncellendi.",
         update16Title: 'Tam Uluslararasılaştırma',
         update16Desc1: 'Tüm butonlar, menüler ve bildirimler için tam İngilizce desteği tamamlandı.',
         update16Desc2: 'Uygulama genelindeki tüm sabit metinler dinamik hale getirildi.',
@@ -265,7 +265,7 @@ const App: React.FC = () => {
         updates: 'Updates',
         security: 'Security',
         clearData: 'Clear All Data and Logout',
-        stableBuild: 'Ai Live Translate v1.8 • Stable Build',
+        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
         updatesTitle: 'Updates',
         guideTitle: 'User Guide',
         photoTranslation: 'Photo Translation',
@@ -301,11 +301,9 @@ const App: React.FC = () => {
         translator: 'Translator',
         detecting: 'DETECTING...',
         typeInLang: 'Type in {lang}...',
-        update18Title: 'Advanced Push-to-Talk (PTT) System',
-        update18Desc1: 'Independent push-to-talk (PTT) control added for both languages.',
-        update18Desc2: 'Dedicated PTT buttons activated for each language in split screen mode.',
-        update18Desc3: 'Audio transmission optimized based on push-to-talk button states.',
-        update18Desc4: 'Full Turkish and English language support provided for all menu and button names.',
+        update17Title: 'Version Update',
+        update17Desc1: 'App version upgraded to v1.7.',
+        update17Desc2: 'All translation keys and texts have been checked and updated.',
         update16Title: 'Full Internationalization',
         update16Desc1: 'Full English support completed for all buttons, menus, and notifications.',
         update16Desc2: 'All static texts throughout the application have been made dynamic.',
@@ -367,8 +365,7 @@ const App: React.FC = () => {
     return text;
   };
   const [isNoiseMode, setIsNoiseMode] = useState(false);
-  const [isHoldingMicA, setIsHoldingMicA] = useState(false);
-  const [isHoldingMicB, setIsHoldingMicB] = useState(false);
+  const [isHoldingMic, setIsHoldingMic] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isListenModeActive, setIsListenModeActive] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -391,12 +388,10 @@ const App: React.FC = () => {
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const aiClientRef = useRef<GoogleGenAI | null>(null);
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
-  const transmitOnConnectRef = useRef(false);
   const activeSessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
   const currentInputTranscription = useRef('');
   const currentOutputTranscription = useRef('');
-  const isTransmittingRef = useRef(false);
 
   useEffect(() => {
     const storedKeys = localStorage.getItem('ai_api_keys');
@@ -553,7 +548,6 @@ const App: React.FC = () => {
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
-    transmitOnConnectRef.current = false;
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
     if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
@@ -562,31 +556,6 @@ const App: React.FC = () => {
     sessionPromiseRef.current = null;
     triggerHaptic();
   }, []);
-
-  const handlePTTStart = (micId: 'A' | 'B') => {
-      if (micId === 'A') setIsHoldingMicA(true);
-      else setIsHoldingMicB(true);
-      
-      if (isConnected) {
-          isTransmittingRef.current = true;
-          triggerHaptic();
-      } else {
-          transmitOnConnectRef.current = true;
-          startLiveSession('bidirectional');
-      }
-  };
-
-  const handlePTTEnd = (micId: 'A' | 'B') => {
-      const newHoldingA = micId === 'A' ? false : isHoldingMicA;
-      const newHoldingB = micId === 'B' ? false : isHoldingMicB;
-      
-      if (micId === 'A') setIsHoldingMicA(false);
-      else setIsHoldingMicB(false);
-      
-      if (isConnected) {
-          isTransmittingRef.current = newHoldingA || newHoldingB;
-      }
-  };
 
   const handleTextSubmit = async () => {
     if (!textInput.trim() || isTextTranslating) return;
@@ -752,7 +721,7 @@ const App: React.FC = () => {
       scriptProcessorRef.current = scriptProcessor;
       
       scriptProcessor.onaudioprocess = (e) => {
-        if (isNoiseMode && !isTransmittingRef.current) return;
+        if (isNoiseMode && !isHoldingMic) return;
         const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
         sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
           media: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
@@ -794,15 +763,7 @@ const App: React.FC = () => {
           }
         },
         callbacks: {
-          onopen: () => { 
-              setIsConnecting(false); 
-              setIsConnected(true); 
-              triggerHaptic(); 
-              if (transmitOnConnectRef.current) {
-                  isTransmittingRef.current = true;
-                  transmitOnConnectRef.current = false;
-              }
-          },
+          onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
           onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
           onclose: stopConnection,
           onerror: (e) => { console.error(e); setError(t('connectionError')); stopConnection(); }
@@ -926,14 +887,7 @@ const App: React.FC = () => {
             <span className="text-[10px] font-bold uppercase tracking-wider">{t('write')}</span>
           </button>
           {!isListenModeActive && viewMode !== 'archive' && (
-            <button 
-                onClick={() => {
-                    const nextMode = viewMode === 'chat' ? 'split' : 'chat';
-                    setViewMode(nextMode);
-                    if (nextMode === 'split') setIsNoiseMode(true);
-                }} 
-                className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-            >
+            <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
               {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
             </button>
           )}
@@ -1096,40 +1050,20 @@ const App: React.FC = () => {
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
                  <p className="text-2xl sm:text-4xl font-bold text-emerald-400 leading-tight break-words">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
-                 <div className="flex gap-4 justify-center mt-4">
-                    {(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text) && (
-                        <button 
-                          onClick={() => handlePlaySpeech(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '', 'split-target')}
-                          className={`p-3 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${isSpeechPlaying === 'split-target' ? 'animate-pulse' : ''}`}
-                        >
-                          <Volume2 size={24} />
-                        </button>
-                    )}
-                    <button
-                        onMouseDown={isNoiseMode ? () => handlePTTStart('B') : undefined}
-                        onMouseUp={isNoiseMode ? () => handlePTTEnd('B') : undefined}
-                        onTouchStart={isNoiseMode ? () => handlePTTStart('B') : undefined}
-                        onTouchEnd={isNoiseMode ? () => handlePTTEnd('B') : undefined}
-                        className={`p-4 rounded-full ${isHoldingMicB ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-emerald-400'}`}
+                 {(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text) && (
+                    <button 
+                      onClick={() => handlePlaySpeech(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '', 'split-target')}
+                      className={`mt-4 p-3 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${isSpeechPlaying === 'split-target' ? 'animate-pulse' : ''}`}
                     >
-                        <Mic size={24} />
+                      <Volume2 size={24} />
                     </button>
-                 </div>
+                  )}
                </div>
             </div>
             <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-6 overflow-y-auto">
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-blue-500/50 uppercase tracking-[0.3em]">{sourceDetails.name}</span>
                  <p className="text-2xl sm:text-4xl font-bold text-white leading-tight break-words">{realtimeInput || messages.filter(m => m.role === 'user').pop()?.text || '...'}</p>
-                 <button
-                      onMouseDown={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                      onMouseUp={isNoiseMode ? () => handlePTTEnd('A') : undefined}
-                      onTouchStart={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                      onTouchEnd={isNoiseMode ? () => handlePTTEnd('A') : undefined}
-                      className={`mt-4 p-4 rounded-full ${isHoldingMicA ? 'bg-blue-600 text-white' : 'bg-slate-800 text-blue-400'}`}
-                  >
-                      <Mic size={24} />
-                  </button>
                </div>
             </div>
           </div>
@@ -1224,10 +1158,10 @@ const App: React.FC = () => {
               <div className="relative group">
                 {isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-orange-500/40"></div>}
                 <button 
-                  onMouseDown={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                  onMouseUp={isNoiseMode ? () => handlePTTEnd('A') : undefined}
-                  onTouchStart={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                  onTouchEnd={isNoiseMode ? () => handlePTTEnd('A') : undefined}
+                  onMouseDown={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('listen')} 
                   className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
                 >
@@ -1238,10 +1172,10 @@ const App: React.FC = () => {
               <div className="relative">
                 {isConnected && !isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/40"></div>}
                 <button 
-                  onMouseDown={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                  onMouseUp={isNoiseMode ? () => handlePTTEnd('A') : undefined}
-                  onTouchStart={isNoiseMode ? () => handlePTTStart('A') : undefined}
-                  onTouchEnd={isNoiseMode ? () => handlePTTEnd('A') : undefined}
+                  onMouseDown={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
+                  onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
+                  onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('bidirectional')} 
                   className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
                 >
@@ -1516,15 +1450,13 @@ const App: React.FC = () => {
               <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-400 font-bold">v1.8</span>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">20 Mart 2026</span>
+                  <span className="text-blue-400 font-bold">v1.7</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">19 Mart 2026</span>
                 </div>
-                <h4 className="font-bold text-lg">Gelişmiş Bas-Konuş (PTT) Sistemi</h4>
+                <h4 className="font-bold text-lg">{t('update17Title')}</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
-                  <li>Her iki dil için bağımsız bas-konuş (PTT) kontrolü eklendi.</li>
-                  <li>Bölünmüş ekran modunda her dil için özel PTT butonları aktif edildi.</li>
-                  <li>Ses iletimi, bas-konuş butonlarının durumuna göre optimize edildi.</li>
-                  <li>Tüm menü ve düğme isimleri için tam Türkçe ve İngilizce dil desteği sağlandı.</li>
+                  <li>{t('update17Desc1')}</li>
+                  <li>{t('update17Desc2')}</li>
                 </ul>
               </div>
 
