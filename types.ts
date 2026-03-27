@@ -14,6 +14,13 @@ export enum TargetLanguage {
   JAPANESE = 'Japanese'
 }
 
+export enum TranslationContext {
+  GENERAL = 'General',
+  MEDICAL = 'Medical',
+  BUSINESS = 'Business',
+  TRAVEL = 'Travel'
+}
+
 export type UILanguage = 'tr' | 'en';
 
 export enum AIProvider {

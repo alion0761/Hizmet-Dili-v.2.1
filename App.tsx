@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
-import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys, UILanguage } from './types';
+import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys, UILanguage, TranslationContext } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
 import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
@@ -74,6 +74,7 @@ const INITIAL_PACKS: OfflinePack[] = [
 const App: React.FC = () => {
   const [sourceLang, setSourceLang] = useState<TargetLanguage>(TargetLanguage.TURKISH);
   const [targetLang, setTargetLang] = useState<TargetLanguage>(TargetLanguage.ENGLISH);
+  const [translationContext, setTranslationContext] = useState<TranslationContext>(TranslationContext.GENERAL);
   const [apiKeys, setApiKeys] = useState<APIKeys>({});
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [tempApiKeyInput, setTempApiKeyInput] = useState('');
@@ -139,7 +140,7 @@ const App: React.FC = () => {
         updates: 'Güncellemeler',
         security: 'Güvenlik',
         clearData: 'Tüm Verileri Temizle ve Çıkış Yap',
-        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
+        stableBuild: 'Ai Live Translate v1.8 • Stable Build',
         updatesTitle: 'Güncellemeler',
         guideTitle: 'Kullanım Kılavuzu',
         photoTranslation: 'Foto Çeviri',
@@ -154,6 +155,11 @@ const App: React.FC = () => {
         splitModeDesc: 'Üst menüdeki kare ikonuna basarak ekranı ikiye bölebilirsiniz. Bu mod, masada karşılıklı oturan kişiler için tasarlanmıştır. Üst kısım karşıdaki kişiye göre 180 derece ters döner, böylece her iki taraf da çeviriyi kendi yönünden okuyabilir.',
         aiModelsTitle: 'Yapay Zeka Modelleri',
         aiModelsDesc: 'Ayarlar menüsünden çeviri yapacak beyni seçebilirsiniz. Gemini Live API en hızlı sesli deneyimi sunarken, OpenAI ve Anthropic modelleri yazılı çevirilerde alternatif zeka seviyeleri sunar.',
+        context: 'Çeviri Bağlamı',
+        contextGeneral: 'Genel',
+        contextMedical: 'Tıbbi',
+        contextBusiness: 'İş',
+        contextTravel: 'Seyahat',
         voicePreferenceDesc: 'Ayarlar menüsünden çevirmenin sesini "Kadın" veya "Erkek" olarak değiştirebilirsiniz. Bu ayar Gemini Live modu aktifken geçerlidir ve çevirilerin seslendirilme tonunu belirler.',
         offlineMode: 'Çevrimdışı Mod',
         offlineModeDesc: 'İnternetiniz olmadığında Ayarlar\'dan "Çevrimdışı Mod"u aktif edebilirsiniz. Bunun için önceden ilgili dil paketlerini indirmiş olmanız gerekir.',
@@ -265,7 +271,7 @@ const App: React.FC = () => {
         updates: 'Updates',
         security: 'Security',
         clearData: 'Clear All Data and Logout',
-        stableBuild: 'Ai Live Translate v1.7 • Stable Build',
+        stableBuild: 'Ai Live Translate v1.8 • Stable Build',
         updatesTitle: 'Updates',
         guideTitle: 'User Guide',
         photoTranslation: 'Photo Translation',
@@ -280,6 +286,11 @@ const App: React.FC = () => {
         splitModeDesc: 'You can split the screen by pressing the square icon in the top menu. This mode is designed for people sitting across from each other at a table. The top part rotates 180 degrees relative to the person opposite, so both sides can read the translation from their own direction.',
         aiModelsTitle: 'AI Models',
         aiModelsDesc: 'You can choose the brain that will translate from the Settings menu. While Gemini Live API offers the fastest voice experience, OpenAI and Anthropic models provide alternative intelligence levels for text translations.',
+        context: 'Translation Context',
+        contextGeneral: 'General',
+        contextMedical: 'Medical',
+        contextBusiness: 'Business',
+        contextTravel: 'Travel',
         voicePreferenceDesc: 'You can change the translator\'s voice to "Female" or "Male" from the Settings menu. This setting is valid when Gemini Live mode is active and determines the tone of the translations.',
         offlineMode: 'Offline Mode',
         offlineModeDesc: 'When you don\'t have internet, you can activate "Offline Mode" from Settings. For this, you must have previously downloaded the relevant language packs.',
@@ -1450,13 +1461,15 @@ const App: React.FC = () => {
               <div className="relative pl-8 border-l-2 border-blue-600/30 space-y-2">
                 <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-blue-600 border-4 border-slate-900"></div>
                 <div className="flex items-center gap-2">
-                  <span className="text-blue-400 font-bold">v1.7</span>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">19 Mart 2026</span>
+                  <span className="text-blue-400 font-bold">v1.8</span>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-widest">27 Mart 2026</span>
                 </div>
-                <h4 className="font-bold text-lg">{t('update17Title')}</h4>
+                <h4 className="font-bold text-lg">Kapsamlı İyileştirmeler</h4>
                 <ul className="text-sm text-slate-400 space-y-2 list-disc pl-4">
-                  <li>{t('update17Desc1')}</li>
-                  <li>{t('update17Desc2')}</li>
+                  <li>Karanlık mod desteği eklendi.</li>
+                  <li>Favoriler ve Çeviri Geçmişi özelliği getirildi.</li>
+                  <li>Kod yapısı modüler hale getirildi (Refactoring).</li>
+                  <li>Performans optimizasyonları yapıldı.</li>
                 </ul>
               </div>
 
