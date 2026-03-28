@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys, UILanguage, TranslationContext } from './types';
 import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFloat32 } from './utils/audioUtils';
 import AudioVisualizer from './components/AudioVisualizer';
+import LiveTranslation from './components/LiveTranslation';
 import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
 
 // Live API Configuration
@@ -79,7 +80,7 @@ const App: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.GEMINI);
   const [tempApiKeyInput, setTempApiKeyInput] = useState('');
   const [tempProviderInput, setTempProviderInput] = useState<AIProvider>(AIProvider.GEMINI);
-  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive' | 'photo'>('chat');
+  const [viewMode, setViewMode] = useState<'chat' | 'split' | 'listen' | 'archive' | 'photo' | 'live'>('chat');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -898,6 +899,11 @@ const App: React.FC = () => {
             <span className="text-[10px] font-bold uppercase tracking-wider">{t('write')}</span>
           </button>
           {!isListenModeActive && viewMode !== 'archive' && (
+            <button onClick={() => setViewMode(viewMode === 'live' ? 'chat' : 'live')} className={`p-2 rounded-full transition-all ${viewMode === 'live' ? 'bg-red-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+              <Waves size={18} />
+            </button>
+          )}
+          {!isListenModeActive && viewMode !== 'archive' && (
             <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
               {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
             </button>
@@ -970,6 +976,8 @@ const App: React.FC = () => {
               </div>
             )}
           </div>
+        ) : viewMode === 'live' ? (
+          <LiveTranslation sourceLang={sourceLang} targetLang={targetLang} />
         ) : viewMode === 'photo' ? (
           <div className="flex-1 relative bg-black flex flex-col">
             {!capturedImage ? (
