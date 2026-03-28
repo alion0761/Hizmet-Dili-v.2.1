@@ -710,6 +710,7 @@ const App: React.FC = () => {
       });
       mediaStreamRef.current = stream;
       const audioCtx = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+      await audioCtx.resume();
       inputAudioContextRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       
@@ -747,6 +748,7 @@ const App: React.FC = () => {
       // scriptProcessor.connect(audioCtx.destination); // Removed to prevent feedback
 
       const outCtx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+      await outCtx.resume();
       outputAudioContextRef.current = outCtx;
       const outAnalyser = outCtx.createAnalyser();
       outputAnalyserRef.current = outAnalyser;
@@ -814,6 +816,7 @@ const App: React.FC = () => {
   const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
     if (!ctx) return;
+    await ctx.resume();
     const arrayBuffer = base64ToArrayBuffer(base64);
     const float32Data = pcm16ToFloat32(arrayBuffer);
     const buffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
