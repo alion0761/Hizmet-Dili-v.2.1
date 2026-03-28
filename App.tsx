@@ -620,7 +620,7 @@ const App: React.FC = () => {
       if (!translatedText) throw new Error(t('noTranslationReceived'));
       
       setMessages(prev => [...prev, 
-        { id: Date.now().toString(), role: 'user', text: textToTranslate, timestamp: new Date(), isFinal: true, langCode: sourceLang },
+        { id: Date.now().toString(), role: 'user', text: textToTranslate, timestamp: new Date(), isFinal: true },
         { id: (Date.now() + 1).toString(), role: 'model', text: translatedText, timestamp: new Date(), isFinal: true, langCode: targetLang }
       ]);
       setTextInput(''); // Only clear on success
@@ -710,7 +710,6 @@ const App: React.FC = () => {
       });
       mediaStreamRef.current = stream;
       const audioCtx = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
-      await audioCtx.resume();
       inputAudioContextRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
       
@@ -745,10 +744,9 @@ const App: React.FC = () => {
       gainNode.connect(compressor);
       compressor.connect(analyser);
       analyser.connect(scriptProcessor);
-      // scriptProcessor.connect(audioCtx.destination); // Removed to prevent feedback
+      scriptProcessor.connect(audioCtx.destination);
 
       const outCtx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
-      await outCtx.resume();
       outputAudioContextRef.current = outCtx;
       const outAnalyser = outCtx.createAnalyser();
       outputAnalyserRef.current = outAnalyser;
@@ -797,14 +795,14 @@ const App: React.FC = () => {
       setRealtimeOutput(currentOutputTranscription.current);
     }
     const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audio) playAudio(audio);
+    if (audio && !isListen) playAudio(audio);
     
     if (msg.serverContent?.turnComplete) {
       const input = currentInputTranscription.current.trim();
       const output = currentOutputTranscription.current.trim();
       if (input || output) {
         setMessages(prev => [...prev, 
-          { id: Date.now().toString(), role: 'user', text: input || '...', timestamp: new Date(), isFinal: true, langCode: isListen ? targetLang : sourceLang },
+          { id: Date.now().toString(), role: 'user', text: input || '...', timestamp: new Date(), isFinal: true },
           { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListen ? sourceLang : targetLang }
         ]);
       }
@@ -816,7 +814,6 @@ const App: React.FC = () => {
   const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
     if (!ctx) return;
-    await ctx.resume();
     const arrayBuffer = base64ToArrayBuffer(base64);
     const float32Data = pcm16ToFloat32(arrayBuffer);
     const buffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
@@ -1063,10 +1060,10 @@ const App: React.FC = () => {
             <div className="flex-1 bg-slate-900/50 flex items-center justify-center p-6 rotate-180 border-b border-white/5 overflow-y-auto">
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em]">{targetDetails.name}</span>
-                 <p className="text-2xl sm:text-4xl font-bold text-emerald-400 leading-tight break-words">{realtimeOutput || messages.filter(m => m.langCode === targetLang).pop()?.text || '...'}</p>
-                 {(realtimeOutput || messages.filter(m => m.langCode === targetLang).pop()?.text) && (
+                 <p className="text-2xl sm:text-4xl font-bold text-emerald-400 leading-tight break-words">{realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '...'}</p>
+                 {(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text) && (
                     <button 
-                      onClick={() => handlePlaySpeech(realtimeOutput || messages.filter(m => m.langCode === targetLang).pop()?.text || '', 'split-target')}
+                      onClick={() => handlePlaySpeech(realtimeOutput || messages.filter(m => m.role === 'model').pop()?.text || '', 'split-target')}
                       className={`mt-4 p-3 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-all ${isSpeechPlaying === 'split-target' ? 'animate-pulse' : ''}`}
                     >
                       <Volume2 size={24} />
@@ -1077,7 +1074,7 @@ const App: React.FC = () => {
             <div className="flex-1 bg-slate-950/50 flex items-center justify-center p-6 overflow-y-auto">
                <div className="text-center space-y-2 w-full max-w-2xl">
                  <span className="text-[10px] font-bold text-blue-500/50 uppercase tracking-[0.3em]">{sourceDetails.name}</span>
-                 <p className="text-2xl sm:text-4xl font-bold text-white leading-tight break-words">{realtimeInput || messages.filter(m => m.langCode === sourceLang).pop()?.text || '...'}</p>
+                 <p className="text-2xl sm:text-4xl font-bold text-white leading-tight break-words">{realtimeInput || messages.filter(m => m.role === 'user').pop()?.text || '...'}</p>
                </div>
             </div>
           </div>
