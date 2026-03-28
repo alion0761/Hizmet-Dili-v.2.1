@@ -14,6 +14,18 @@ const LiveTranslation: React.FC<LiveTranslationProps> = ({ sourceLang, targetLan
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       const audioContext = new AudioContext();
+      
+      // Attempt to set sinkId to headphones if supported
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const headphones = devices.find(d => d.kind === 'audiooutput' && d.label.toLowerCase().includes('headphone'));
+        if (headphones && (audioContext as any).setSinkId) {
+          await (audioContext as any).setSinkId(headphones.deviceId);
+        }
+      } catch (e) {
+        console.warn('Could not set sinkId', e);
+      }
+
       audioContextRef.current = audioContext;
       
       const source = audioContext.createMediaStreamSource(stream);
