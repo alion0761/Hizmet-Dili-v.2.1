@@ -744,7 +744,7 @@ const App: React.FC = () => {
       gainNode.connect(compressor);
       compressor.connect(analyser);
       analyser.connect(scriptProcessor);
-      scriptProcessor.connect(audioCtx.destination);
+      // scriptProcessor.connect(audioCtx.destination); // Removed to prevent feedback
 
       const outCtx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
       outputAudioContextRef.current = outCtx;
@@ -795,7 +795,7 @@ const App: React.FC = () => {
       setRealtimeOutput(currentOutputTranscription.current);
     }
     const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audio && !isListen) playAudio(audio);
+    if (audio) playAudio(audio);
     
     if (msg.serverContent?.turnComplete) {
       const input = currentInputTranscription.current.trim();
