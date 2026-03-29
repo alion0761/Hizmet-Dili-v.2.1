@@ -260,14 +260,13 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
         >
           {isConnecting ? <Loader2 size={32} className="animate-spin" /> : isConnected ? 'Eğitim Koçunu Kapat' : 'Eğitim Koçunu Başlat'}
         </button>
-        {isConnected && (
-          <button
-            onClick={clearHistory}
-            className="relative z-10 mt-4 px-4 py-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all"
-          >
-            Geçmişi Sil
-          </button>
-        )}
+        
+        <button
+          onClick={clearHistory}
+          className={`relative z-10 mt-4 px-4 py-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all ${isConnected ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        >
+          Geçmişi Sil
+        </button>
       </div>
     </div>
   );
