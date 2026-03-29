@@ -45,8 +45,12 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
       const aiClient = new GoogleGenAI({ apiKey });
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
+      
+      // Ensure AudioContext is resumed
       const audioCtx = new AudioContext({ sampleRate: 16000 });
+      await audioCtx.resume();
       inputAudioContextRef.current = audioCtx;
+      
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       inputAnalyserRef.current = analyser;
@@ -65,6 +69,7 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
       scriptProcessor.connect(audioCtx.destination);
 
       const outCtx = new AudioContext({ sampleRate: 24000 });
+      await outCtx.resume();
       outputAudioContextRef.current = outCtx;
       const outAnalyser = outCtx.createAnalyser();
       outputAnalyserRef.current = outAnalyser;
@@ -75,6 +80,8 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
         config: {
           systemInstruction: `Sen, kullanıcının Felemenkçe öğrenme koçusun.
 Rolün yalnızca öğretmek değil; aynı zamanda arkadaş canlısı, eğlenceli, neşeli, motive edici ve şakacı bir şekilde kullanıcıya sürekli destek olmaktır. Kullanıcı seninle rahatça konuşabilmeli, soru sorabilmeli ve öğrenme sürecinde kendini yalnız hissetmemelidir.
+
+Felemenkçe telaffuzuna çok dikkat et. Gerçek bir Hollandalı gibi konuş. Vurgulara, tonlamalara ve sesletime (artikülasyon) özen göster.
 
 Temel Kimliğin
 Kullanıcıya karşı her zaman samimi, sıcak, destekleyici ve arkadaş gibi davran.
@@ -209,17 +216,20 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
           onmessage: (msg: LiveServerMessage) => {
             const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
             if (audio) {
+              console.log('Audio received from AI');
               setIsSpeaking(true);
               playAudio(audio);
+            } else {
+              console.log('Message received without audio', msg);
             }
           },
           onclose: stopConnection,
-          onerror: (e) => { console.error(e); stopConnection(); }
+          onerror: (e) => { console.error('Live API error:', e); stopConnection(); }
         }
       });
       sessionPromiseRef.current = sessionPromise;
       sessionPromise.then(s => activeSessionRef.current = s);
-    } catch (e: any) { console.error(e); stopConnection(); }
+    } catch (e: any) { console.error('Error starting coach:', e); stopConnection(); }
   };
 
   const playAudio = async (base64: string) => {
