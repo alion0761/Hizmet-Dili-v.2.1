@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import EducationCoach from './components/EducationCoach';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 import { TargetLanguage, ChatMessage, OfflinePack, ArchivedSession, AIProvider, APIKeys, UILanguage, TranslationContext } from './types';
@@ -390,6 +391,7 @@ const App: React.FC = () => {
   const [isSpeechPlaying, setIsSpeechPlaying] = useState<string | null>(null);
   const [showUpdates, setShowUpdates] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [showEducationCoach, setShowEducationCoach] = useState(false);
 
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -870,6 +872,12 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setShowEducationCoach(true)}
+            className="px-3 py-1.5 rounded-full bg-orange-600 text-white text-[10px] font-bold uppercase tracking-wider"
+          >
+            Eğitim Koçu
+          </button>
           <button 
             onClick={() => {
               if (viewMode === 'photo') {
@@ -1623,6 +1631,7 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+      {showEducationCoach && <EducationCoach onClose={() => setShowEducationCoach(false)} apiKey={apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '')} />}
     </div>
   );
 };
