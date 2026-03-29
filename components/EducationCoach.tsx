@@ -1,8 +1,13 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
-import { X, Loader2 } from 'lucide-react';
+import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
+import { X, Loader2, BookOpen } from 'lucide-react';
 import AudioVisualizer from './AudioVisualizer';
 import { float32To16BitPCM, arrayBufferToBase64, pcm16ToFloat32 } from '../utils/audioUtils';
+
+interface LearnedWord {
+  original: string;
+  translation: string;
+}
 
 interface EducationCoachProps {
   onClose: () => void;
@@ -13,6 +18,8 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [learnedWords, setLearnedWords] = useState<LearnedWord[]>([]);
+  const [activeTab, setActiveTab] = useState<'coach' | 'learned'>('coach');
   
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -23,6 +30,26 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const activeSessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
+
+  const addLearnedWord = (original: string, translation: string) => {
+    setLearnedWords(prev => {
+      if (prev.some(w => w.original === original)) return prev;
+      return [...prev, { original, translation }];
+    });
+  };
+
+  const addLearnedWordDeclaration: FunctionDeclaration = {
+    name: "addLearnedWord",
+    description: "Yeni öğrenilen bir kelimeyi veya cümleyi listeye ekle.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        original: { type: Type.STRING, description: "Felemenkçe kelime veya cümle." },
+        translation: { type: Type.STRING, description: "Türkçe karşılığı." }
+      },
+      required: ["original", "translation"]
+    }
+  };
 
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsSpeaking(false);
@@ -80,6 +107,7 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
         config: {
           systemInstruction: `Sen, kullanıcının Felemenkçe öğrenme koçusun.
 Rolün yalnızca sesli iletişim kurmaktır. KESİNLİKLE YAZILI METİN ÜRETME, YALNIZCA SESLİ KONUŞ.
+Yeni bir kelime veya cümle öğrettiğinde, 'addLearnedWord' aracını kullanarak bunu listeye ekle.
 
 Rolün: arkadaş canlısı, eğlenceli, neşeli, motive edici ve şakacı bir şekilde kullanıcıya sürekli destek olmaktır. Kullanıcı seninle rahatça konuşabilmeli, soru sorabilmeli ve öğrenme sürecinde kendini yalnız hissetmemelidir.
 
@@ -191,11 +219,26 @@ ve gerektiğinde eğlenceli bir dil partneri
 olarak hissetmesini sağla.
 Her zaman hedefin şu olsun:
 Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif aldığını sesli olarak duysun.`,
-          responseModalities: [Modality.AUDIO]
+          responseModalities: [Modality.AUDIO],
+          tools: [{ functionDeclarations: [addLearnedWordDeclaration] }]
         },
         callbacks: {
           onopen: () => { setIsConnecting(false); setIsConnected(true); },
           onmessage: (msg: LiveServerMessage) => {
+            if (msg.toolCall) {
+              for (const call of msg.toolCall.functionCalls) {
+                if (call.name === 'addLearnedWord') {
+                  addLearnedWord(call.args.original as string, call.args.translation as string);
+                  activeSessionRef.current?.sendToolResponse({
+                    functionResponses: [{
+                      name: 'addLearnedWord',
+                      id: call.id,
+                      response: { result: 'success' }
+                    }]
+                  });
+                }
+              }
+            }
             const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
             if (audio) {
               console.log('Audio received from AI');
@@ -235,38 +278,61 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
       <button onClick={onClose} className="absolute top-4 right-4 text-white p-2">
         <X size={32} />
       </button>
 
-      <div className="relative flex flex-col items-center w-full">
-        {isSpeaking && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-48 h-48 bg-orange-500 rounded-full animate-ping opacity-50"></div>
-            <div className="w-64 h-64 bg-orange-500 rounded-full animate-ping opacity-30 delay-100"></div>
-          </div>
-        )}
-        <div className="w-48 h-48 relative z-10">
-          <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 animate-spin p-1">
-            <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
-              <div className="w-40 h-40 rounded-full bg-gradient-to-bl from-green-400 via-yellow-400 to-red-500 animate-spin [animation-direction:reverse]"></div>
+      <div className="flex flex-1 gap-4 overflow-hidden">
+        {/* Coach Section */}
+        <div className="flex-1 flex flex-col items-center justify-center relative">
+          {isSpeaking && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-48 h-48 bg-orange-500 rounded-full animate-ping opacity-50"></div>
+              <div className="w-64 h-64 bg-orange-500 rounded-full animate-ping opacity-30 delay-100"></div>
+            </div>
+          )}
+          <div className="w-48 h-48 relative z-10">
+            <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 animate-spin p-1">
+              <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
+                <div className="w-40 h-40 rounded-full bg-gradient-to-bl from-green-400 via-yellow-400 to-red-500 animate-spin [animation-direction:reverse]"></div>
+              </div>
             </div>
           </div>
+          <div className="flex flex-col items-center gap-4 mt-8">
+            <button
+              onClick={startCoach}
+              className="relative z-10 w-16 h-16 bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-orange-700 transition-all"
+            >
+              {isConnecting ? <Loader2 size={24} className="animate-spin" /> : isConnected ? 'Kapat' : 'Başlat'}
+            </button>
+            <button
+              onClick={clearHistory}
+              className={`relative z-10 px-4 py-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all ${isConnected ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+              Geçmişi Sil
+            </button>
+          </div>
         </div>
-        <button
-          onClick={startCoach}
-          className="relative z-10 mt-8 w-40 h-40 bg-orange-600 text-white rounded-full flex items-center justify-center text-xl font-bold shadow-lg hover:bg-orange-700 transition-all"
-        >
-          {isConnecting ? <Loader2 size={32} className="animate-spin" /> : isConnected ? 'Eğitim Koçunu Kapat' : 'Eğitim Koçunu Başlat'}
-        </button>
-        
-        <button
-          onClick={clearHistory}
-          className={`relative z-10 mt-4 px-4 py-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all ${isConnected ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-        >
-          Geçmişi Sil
-        </button>
+
+        {/* Learned Words Section */}
+        <div className="w-80 bg-gray-800 rounded-2xl p-4 flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-white font-bold flex items-center gap-2">
+              <BookOpen size={20} /> Öğrendiklerim
+            </h2>
+            <span className="bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold">
+              {learnedWords.length}
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {learnedWords.map((word, index) => (
+              <div key={index} className="bg-gray-700 p-2 rounded text-sm text-white">
+                <span className="font-bold">{word.original}</span> → {word.translation}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
