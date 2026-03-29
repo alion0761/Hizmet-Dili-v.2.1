@@ -261,12 +261,11 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
           </div>
         )}
         <div className="w-48 h-48 relative z-10">
-          <img 
-            src="/src/smoke-ring.png" 
-            alt="Animated Smoke Ring" 
-            className="w-full h-full animate-spin duration-[10000ms] linear infinite"
-            referrerPolicy="no-referrer"
-          />
+          <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 animate-spin p-1">
+            <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
+              <div className="w-40 h-40 rounded-full bg-gradient-to-bl from-green-400 via-yellow-400 to-red-500 animate-spin [animation-direction:reverse]"></div>
+            </div>
+          </div>
         </div>
         <button
           onClick={startCoach}
