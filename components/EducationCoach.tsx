@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
-import { Mic, X } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { X, Loader2 } from 'lucide-react';
+import AudioVisualizer from './AudioVisualizer';
+import { float32To16BitPCM, arrayBufferToBase64, pcm16ToFloat32 } from '../utils/audioUtils';
 
 interface EducationCoachProps {
   onClose: () => void;
@@ -8,30 +10,70 @@ interface EducationCoachProps {
 }
 
 const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
-  const [isCoachActive, setIsCoachActive] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [messages, setMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
-  const [input, setInput] = useState('');
   
-  const aiClient = useRef(new GoogleGenAI({ apiKey }));
+  const inputAudioContextRef = useRef<AudioContext | null>(null);
+  const outputAudioContextRef = useRef<AudioContext | null>(null);
+  const inputAnalyserRef = useRef<AnalyserNode | null>(null);
+  const outputAnalyserRef = useRef<AnalyserNode | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const sessionPromiseRef = useRef<Promise<any> | null>(null);
+  const activeSessionRef = useRef<any>(null);
+  const nextStartTimeRef = useRef<number>(0);
 
-  const toggleCoach = () => {
-    setIsCoachActive(!isCoachActive);
-    // Reset state if closing
-    if (isCoachActive) {
-      setIsSpeaking(false);
-      setMessages([]);
-    }
-  };
+  const stopConnection = useCallback(() => {
+    setIsConnecting(false); setIsConnected(false); setIsSpeaking(false);
+    if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+    if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
+    if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
+    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
+    if (activeSessionRef.current) activeSessionRef.current.close();
+    sessionPromiseRef.current = null;
+  }, []);
 
   const startCoach = async () => {
-    setIsSpeaking(true);
-    // Simulate coach speaking
-    const response = await aiClient.current.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: 'Merhaba! Ben senin Felemenkçe öğrenme koçunum. Nasıl gidiyor?',
-      config: {
-        systemInstruction: `Sen, kullanıcının Felemenkçe öğrenme koçusun.
+    if (isConnected) {
+      stopConnection();
+      return;
+    }
+    setIsConnecting(true);
+
+    try {
+      const aiClient = new GoogleGenAI({ apiKey });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      const audioCtx = new AudioContext({ sampleRate: 16000 });
+      inputAudioContextRef.current = audioCtx;
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      inputAnalyserRef.current = analyser;
+      const scriptProcessor = audioCtx.createScriptProcessor(4096, 1, 1);
+      scriptProcessorRef.current = scriptProcessor;
+      
+      scriptProcessor.onaudioprocess = (e) => {
+        const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
+        sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
+          audio: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
+        }));
+      };
+
+      source.connect(analyser);
+      analyser.connect(scriptProcessor);
+      scriptProcessor.connect(audioCtx.destination);
+
+      const outCtx = new AudioContext({ sampleRate: 24000 });
+      outputAudioContextRef.current = outCtx;
+      const outAnalyser = outCtx.createAnalyser();
+      outputAnalyserRef.current = outAnalyser;
+      outAnalyser.connect(outCtx.destination);
+
+      const sessionPromise = aiClient.live.connect({
+        model: 'gemini-3.1-flash-live-preview',
+        config: {
+          systemInstruction: `Sen, kullanıcının Felemenkçe öğrenme koçusun.
 Rolün yalnızca öğretmek değil; aynı zamanda arkadaş canlısı, eğlenceli, neşeli, motive edici ve şakacı bir şekilde kullanıcıya sürekli destek olmaktır. Kullanıcı seninle rahatça konuşabilmeli, soru sorabilmeli ve öğrenme sürecinde kendini yalnız hissetmemelidir.
 
 Temel Kimliğin
@@ -159,11 +201,40 @@ bir motivasyon koçu,
 ve gerektiğinde eğlenceli bir dil partneri
 olarak hissetmesini sağla.
 Her zaman hedefin şu olsun:
-Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif alsın.`
-      }
-    });
-    setMessages(prev => [...prev, { role: 'model', text: response.text || '' }]);
-    setIsSpeaking(false);
+Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif alsın.`,
+          responseModalities: [Modality.AUDIO]
+        },
+        callbacks: {
+          onopen: () => { setIsConnecting(false); setIsConnected(true); },
+          onmessage: (msg: LiveServerMessage) => {
+            const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
+            if (audio) {
+              setIsSpeaking(true);
+              playAudio(audio);
+            }
+          },
+          onclose: stopConnection,
+          onerror: (e) => { console.error(e); stopConnection(); }
+        }
+      });
+      sessionPromiseRef.current = sessionPromise;
+      sessionPromise.then(s => activeSessionRef.current = s);
+    } catch (e: any) { console.error(e); stopConnection(); }
+  };
+
+  const playAudio = async (base64: string) => {
+    const ctx = outputAudioContextRef.current;
+    if (!ctx) return;
+    const arrayBuffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0)).buffer;
+    const float32Data = pcm16ToFloat32(arrayBuffer);
+    const buffer = ctx.createBuffer(1, float32Data.length, 24000);
+    buffer.getChannelData(0).set(float32Data);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(outputAnalyserRef.current!);
+    source.onended = () => setIsSpeaking(false);
+    source.start(Math.max(nextStartTimeRef.current, ctx.currentTime));
+    nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime) + buffer.duration;
   };
 
   return (
@@ -172,29 +243,22 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
         <X size={32} />
       </button>
 
-      <div className="relative flex flex-col items-center">
+      <div className="relative flex flex-col items-center w-full">
         {isSpeaking && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-48 h-48 bg-orange-500 rounded-full animate-ping opacity-50"></div>
             <div className="w-64 h-64 bg-orange-500 rounded-full animate-ping opacity-30 delay-100"></div>
           </div>
         )}
+        <div className="w-48 h-48 relative z-10">
+          <AudioVisualizer analyser={isSpeaking ? outputAnalyserRef.current : inputAnalyserRef.current} isActive={isConnected} color="#f97316" />
+        </div>
         <button
           onClick={startCoach}
-          className="relative z-10 w-40 h-40 bg-orange-600 text-white rounded-full flex items-center justify-center text-xl font-bold shadow-lg hover:bg-orange-700 transition-all"
+          className="relative z-10 mt-8 w-40 h-40 bg-orange-600 text-white rounded-full flex items-center justify-center text-xl font-bold shadow-lg hover:bg-orange-700 transition-all"
         >
-          {isSpeaking ? 'Eğitim Koçu Konuşuyor...' : 'Eğitim Koçunu Başlat'}
+          {isConnecting ? <Loader2 size={32} className="animate-spin" /> : isConnected ? 'Eğitim Koçunu Kapat' : 'Eğitim Koçunu Başlat'}
         </button>
-      </div>
-
-      <div className="mt-8 w-full max-w-2xl bg-white p-6 rounded-lg shadow-lg overflow-y-auto max-h-64">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`mb-4 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-            <span className={`inline-block p-3 rounded-lg ${msg.role === 'user' ? 'bg-blue-100' : 'bg-gray-100'}`}>
-              {msg.text}
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   );
