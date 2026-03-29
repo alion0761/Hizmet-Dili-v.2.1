@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "LearnedWord": {
+      "title": "LearnedWord",
+      "description": "A word or phrase learned by the user.",
+      "type": "object",
+      "properties": {
+        "original": { "type": "string", "description": "The original word." },
+        "translation": { "type": "string", "description": "The translation." },
+        "userId": { "type": "string", "description": "The ID of the user who learned this." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When it was learned." }
+      },
+      "required": ["original", "translation", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/learnedWords/{wordId}": {
+      "schema": { "$ref": "LearnedWord" },
+      "description": "Learned words for a user."
+    }
+  }
+}

@@ -1,10 +1,14 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { X, Loader2, BookOpen } from 'lucide-react';
 import AudioVisualizer from './AudioVisualizer';
 import { float32To16BitPCM, arrayBufferToBase64, pcm16ToFloat32 } from '../utils/audioUtils';
+import { db, auth } from '../firebase';
+import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface LearnedWord {
+  id: string;
   original: string;
   translation: string;
 }
@@ -19,7 +23,7 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [learnedWords, setLearnedWords] = useState<LearnedWord[]>([]);
-  const [activeTab, setActiveTab] = useState<'coach' | 'learned'>('coach');
+  const [userId, setUserId] = useState<string | null>(null);
   
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -31,11 +35,43 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const activeSessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
 
-  const addLearnedWord = (original: string, translation: string) => {
-    setLearnedWords(prev => {
-      if (prev.some(w => w.original === original)) return prev;
-      return [...prev, { original, translation }];
+  useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setUserId(user?.uid || null);
     });
+    return () => unsubscribeAuth();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setLearnedWords([]);
+      return;
+    }
+
+    const q = query(collection(db, 'users', userId, 'learnedWords'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const words: LearnedWord[] = [];
+      snapshot.forEach((doc) => {
+        words.push({ id: doc.id, ...doc.data() } as LearnedWord);
+      });
+      setLearnedWords(words);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+
+  const addLearnedWord = async (original: string, translation: string) => {
+    if (!userId) return;
+    try {
+      await addDoc(collection(db, 'users', userId, 'learnedWords'), {
+        original,
+        translation,
+        userId,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error('Error adding word:', e);
+    }
   };
 
   const addLearnedWordDeclaration: FunctionDeclaration = {

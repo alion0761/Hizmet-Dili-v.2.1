@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users/{userId}/learnedWords
+    // Document ID: auto-generated
+    // Fields:
+    //   - original: string (required, max 200 chars)
+    //   - translation: string (required, max 200 chars)
+    //   - userId: string (required, immutable)
+    //   - createdAt: timestamp (required, immutable)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidWord(data) {
+      return data.keys().hasAll(['original', 'translation', 'userId', 'createdAt']) &&
+             data.keys().hasOnly(['original', 'translation', 'userId', 'createdAt']) &&
+             data.original is string && data.original.size() > 0 && data.original.size() <= 200 &&
+             data.translation is string && data.translation.size() > 0 && data.translation.size() <= 200 &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    match /users/{userId}/learnedWords/{wordId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidWord(request.resource.data);
+      allow update: if false; // Words are immutable once learned
+      allow delete: if isOwner(userId);
+    }
+  }
+}
