@@ -261,7 +261,12 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
           </div>
         )}
         <div className="w-48 h-48 relative z-10">
-          <AudioVisualizer analyser={isSpeaking ? outputAnalyserRef.current : inputAnalyserRef.current} isActive={isConnected} color="#f97316" />
+          <img 
+            src="/smoke-ring.png" 
+            alt="Animated Smoke Ring" 
+            className="w-full h-full animate-spin duration-[10000ms] linear infinite"
+            referrerPolicy="no-referrer"
+          />
         </div>
         <button
           onClick={startCoach}
