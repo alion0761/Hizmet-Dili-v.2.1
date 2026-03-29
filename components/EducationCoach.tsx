@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
-import { X, Loader2, BookOpen } from 'lucide-react';
-import AudioVisualizer from './AudioVisualizer';
+import { X, Loader2, BookOpen, Mic, Trash2, MessageSquare } from 'lucide-react';
 import { float32To16BitPCM, arrayBufferToBase64, pcm16ToFloat32 } from '../utils/audioUtils';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore';
@@ -24,6 +23,7 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [learnedWords, setLearnedWords] = useState<LearnedWord[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'coach' | 'learned'>('coach');
   
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -109,7 +109,6 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
       
-      // Ensure AudioContext is resumed
       const audioCtx = new AudioContext({ sampleRate: 16000 });
       await audioCtx.resume();
       inputAudioContextRef.current = audioCtx;
@@ -277,11 +276,8 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
             }
             const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
             if (audio) {
-              console.log('Audio received from AI');
               setIsSpeaking(true);
               playAudio(audio);
-            } else {
-              console.log('Message received without audio', msg);
             }
           },
           onclose: stopConnection,
@@ -314,59 +310,83 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col p-4">
-      <button onClick={onClose} className="absolute top-4 right-4 text-white p-2">
-        <X size={32} />
-      </button>
+    <div className="fixed inset-0 bg-gray-50 z-50 flex flex-col">
+      {/* Header */}
+      <header className="flex items-center justify-between p-4 bg-white border-b border-gray-200">
+        <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+          <MessageSquare className="text-orange-600" /> Eğitim Koçu
+        </h1>
+        <button onClick={onClose} className="p-2 text-gray-500 hover:text-gray-800 transition-colors">
+          <X size={24} />
+        </button>
+      </header>
 
-      <div className="flex flex-1 gap-4 overflow-hidden">
+      {/* Tabs (Mobile Only) */}
+      <div className="flex md:hidden border-b border-gray-200">
+        <button 
+          onClick={() => setActiveTab('coach')}
+          className={`flex-1 py-3 text-sm font-medium ${activeTab === 'coach' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-500'}`}
+        >
+          Koç
+        </button>
+        <button 
+          onClick={() => setActiveTab('learned')}
+          className={`flex-1 py-3 text-sm font-medium ${activeTab === 'learned' ? 'text-orange-600 border-b-2 border-orange-600' : 'text-gray-500'}`}
+        >
+          Öğrendiklerim ({learnedWords.length})
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Coach Section */}
-        <div className="flex-1 flex flex-col items-center justify-center relative">
-          {isSpeaking && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-48 h-48 bg-orange-500 rounded-full animate-ping opacity-50"></div>
-              <div className="w-64 h-64 bg-orange-500 rounded-full animate-ping opacity-30 delay-100"></div>
-            </div>
-          )}
-          <div className="w-48 h-48 relative z-10">
-            <div className="w-full h-full rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 animate-spin p-1">
-              <div className="w-full h-full rounded-full bg-gray-900 flex items-center justify-center">
-                <div className="w-40 h-40 rounded-full bg-gradient-to-bl from-green-400 via-yellow-400 to-red-500 animate-spin [animation-direction:reverse]"></div>
+        <div className={`flex-1 flex flex-col items-center justify-center p-6 ${activeTab === 'coach' ? 'flex' : 'hidden md:flex'}`}>
+          <div className="relative w-64 h-64 flex items-center justify-center">
+            {isSpeaking && (
+              <>
+                <div className="absolute w-64 h-64 bg-orange-200 rounded-full animate-ping opacity-50"></div>
+                <div className="absolute w-48 h-48 bg-orange-300 rounded-full animate-ping opacity-40 delay-100"></div>
+              </>
+            )}
+            <div className="w-40 h-40 rounded-full bg-gradient-to-tr from-blue-500 via-purple-500 to-orange-500 animate-spin p-1 z-10">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                <Mic size={48} className="text-gray-700" />
               </div>
             </div>
           </div>
-          <div className="flex flex-col items-center gap-4 mt-8">
+          
+          <div className="flex flex-col items-center gap-4 mt-12 w-full max-w-xs">
             <button
               onClick={startCoach}
-              className="relative z-10 w-16 h-16 bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-orange-700 transition-all"
+              className={`w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg transition-all flex items-center justify-center gap-2 ${isConnected ? 'bg-red-600 hover:bg-red-700' : 'bg-orange-600 hover:bg-orange-700'}`}
             >
-              {isConnecting ? <Loader2 size={24} className="animate-spin" /> : isConnected ? 'Kapat' : 'Başlat'}
+              {isConnecting ? <Loader2 size={24} className="animate-spin" /> : isConnected ? 'Koçu Durdur' : 'Eğitimi Başlat'}
             </button>
             <button
               onClick={clearHistory}
-              className={`relative z-10 px-4 py-2 bg-red-600 text-white rounded-full shadow-lg hover:bg-red-700 transition-all ${isConnected ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              className={`w-full py-3 rounded-xl text-gray-600 font-medium bg-gray-100 hover:bg-gray-200 transition-all flex items-center justify-center gap-2 ${isConnected ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}
             >
-              Geçmişi Sil
+              <Trash2 size={18} /> Geçmişi Sil
             </button>
           </div>
         </div>
 
         {/* Learned Words Section */}
-        <div className="w-80 bg-gray-800 rounded-2xl p-4 flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-white font-bold flex items-center gap-2">
-              <BookOpen size={20} /> Öğrendiklerim
-            </h2>
-            <span className="bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-bold">
-              {learnedWords.length}
-            </span>
-          </div>
-          <div className="flex-1 overflow-y-auto space-y-2">
-            {learnedWords.map((word, index) => (
-              <div key={index} className="bg-gray-700 p-2 rounded text-sm text-white">
-                <span className="font-bold">{word.original}</span> → {word.translation}
-              </div>
-            ))}
+        <div className={`flex-1 md:w-80 bg-white border-l border-gray-200 p-6 flex flex-col ${activeTab === 'learned' ? 'flex' : 'hidden md:flex'}`}>
+          <h2 className="text-lg font-bold text-gray-800 mb-6 flex items-center gap-2">
+            <BookOpen className="text-orange-600" /> Öğrendiklerim
+          </h2>
+          <div className="flex-1 overflow-y-auto space-y-3">
+            {learnedWords.length === 0 ? (
+              <p className="text-gray-400 text-center mt-10">Henüz bir kelime öğrenmedin. Koç ile çalışmaya başla!</p>
+            ) : (
+              learnedWords.map((word) => (
+                <div key={word.id} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                  <p className="font-bold text-gray-800 text-lg">{word.original}</p>
+                  <p className="text-gray-600">{word.translation}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
