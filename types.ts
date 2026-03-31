@@ -63,5 +63,6 @@ export interface ArchivedSession {
   date: string;
   targetLang: TargetLanguage;
   preview: string;
+  summary: string;
   messages: ChatMessage[];
 }

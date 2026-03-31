@@ -686,7 +686,7 @@ const App: React.FC = () => {
   const startLiveSession = async (mode: 'bidirectional' | 'listen') => {
     if (isConnecting || isConnected) {
       if (isConnected) {
-        if (mode === 'listen' && messages.length > 0) setShowSaveModal(true);
+        if (messages.length > 0) setShowSaveModal(true);
         else stopConnection();
       }
       return;
@@ -797,7 +797,7 @@ const App: React.FC = () => {
       setRealtimeOutput(currentOutputTranscription.current);
     }
     const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audio && !isListen) playAudio(audio);
+    if (audio) playAudio(audio);
     
     if (msg.serverContent?.turnComplete) {
       const input = currentInputTranscription.current.trim();
@@ -816,6 +816,12 @@ const App: React.FC = () => {
   const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
     if (!ctx) return;
+    
+    // Ensure the audio context is resumed (required for autoplay policies)
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+
     const arrayBuffer = base64ToArrayBuffer(base64);
     const float32Data = pcm16ToFloat32(arrayBuffer);
     const buffer = ctx.createBuffer(1, float32Data.length, OUTPUT_SAMPLE_RATE);
@@ -827,12 +833,30 @@ const App: React.FC = () => {
     nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime) + buffer.duration;
   };
 
-  const saveSession = () => {
+  const saveSession = async () => {
+    let summary = '';
+    if (messages.length > 0) {
+      try {
+        const apiKey = apiKeys.gemini || (typeof process !== 'undefined' ? (process.env.GEMINI_API_KEY || process.env.API_KEY) : '');
+        if (apiKey) {
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: `Bu görüşmenin kısa bir özetini çıkar: ${messages.map(m => m.text).join(' ')}`,
+          });
+          summary = response.text || '';
+        }
+      } catch (e) {
+        console.error("Summary generation error:", e);
+      }
+    }
+
     const newSession: ArchivedSession = {
       id: Date.now().toString(),
       date: new Date().toISOString(),
       targetLang: targetLang,
       preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : t('emptySession'),
+      summary: summary,
       messages: [...messages]
     };
     const updated = [newSession, ...savedSessions];
@@ -840,6 +864,14 @@ const App: React.FC = () => {
     localStorage.setItem('archivedSessions', JSON.stringify(updated));
     setShowSaveModal(false);
     stopConnection();
+  };
+
+  const requestEndSession = () => {
+    if (messages.length > 0) {
+      setShowSaveModal(true);
+    } else {
+      stopConnection();
+    }
   };
 
   const deleteArchivedSession = (id: string) => {
@@ -940,6 +972,7 @@ const App: React.FC = () => {
                    <div>
                      <h3 className="font-bold text-lg">{new Date(openedArchive.date).toLocaleDateString()}</h3>
                      <p className="text-xs text-slate-500">{t('translationOf', { lang: getLangDetails(openedArchive.targetLang).name })}</p>
+                     {openedArchive.summary && <p className="text-sm text-slate-300 mt-2 bg-slate-800 p-3 rounded-xl">{openedArchive.summary}</p>}
                    </div>
                    <button onClick={() => deleteArchivedSession(openedArchive.id)} className="p-3 bg-red-500/10 text-red-400 rounded-xl"><Trash2 size={20}/></button>
                 </div>
@@ -971,7 +1004,7 @@ const App: React.FC = () => {
                         <h4 className="font-bold text-slate-200">{new Date(s.date).toLocaleDateString()}</h4>
                         <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded uppercase tracking-widest text-slate-500">{getLangDetails(s.targetLang).short}</span>
                       </div>
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{s.preview}</p>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">{s.summary || s.preview}</p>
                     </div>
                   ))
                 )}
