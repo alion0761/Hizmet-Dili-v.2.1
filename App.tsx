@@ -95,7 +95,10 @@ const App: React.FC = () => {
   });
 
   const [isConnected, setIsConnected] = useState(false);
+  const [isMicActive, setIsMicActive] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+  const isMicActiveRef = useRef(false);
+  useEffect(() => { isMicActiveRef.current = isMicActive; }, [isMicActive]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [realtimeInput, setRealtimeInput] = useState('');
@@ -560,6 +563,7 @@ const App: React.FC = () => {
 
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
+    setIsMicActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
@@ -691,7 +695,7 @@ const App: React.FC = () => {
       }
       return;
     }
-    setIsConnecting(true); setError(null);
+    setIsConnecting(true); setError(null); setIsMicActive(true);
     const isListen = mode === 'listen';
     if (isListen) { setViewMode('listen'); setIsListenModeActive(true); setMessages([]); }
 
@@ -734,6 +738,7 @@ const App: React.FC = () => {
       scriptProcessorRef.current = scriptProcessor;
       
       scriptProcessor.onaudioprocess = (e) => {
+        if (!isMicActiveRef.current) return;
         if (isNoiseMode && !isHoldingMic) return;
         const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
         sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
@@ -810,6 +815,14 @@ const App: React.FC = () => {
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
       setRealtimeInput(''); setRealtimeOutput('');
+      
+      // Automatically stop microphone when turn is complete as requested
+      setIsMicActive(false);
+      
+      // Close session after a delay to allow final audio chunks to play
+      setTimeout(() => {
+        stopConnection();
+      }, 2000);
     }
   };
 
@@ -1220,17 +1233,46 @@ const App: React.FC = () => {
               </div>
 
               <div className="relative">
-                {isConnected && !isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/40"></div>}
+                {isMicActive && !isListenModeActive && (
+                  <div className="absolute -inset-4 rounded-full bg-emerald-500/20 animate-pulse blur-xl"></div>
+                )}
+                {isMicActive && !isListenModeActive && (
+                  <div className="absolute inset-0 rounded-full animate-ping bg-emerald-500/40"></div>
+                )}
                 <button 
                   onMouseDown={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
-                  onClick={() => !isNoiseMode && startLiveSession('bidirectional')} 
-                  className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
+                  onClick={() => {
+                    if (isConnected && !isListenModeActive) {
+                      stopConnection();
+                    } else if (!isNoiseMode) {
+                      startLiveSession('bidirectional');
+                    }
+                  }} 
+                  className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-500 transform active:scale-90 z-10 ${
+                    isMicActive && !isListenModeActive 
+                      ? 'bg-emerald-500 text-white scale-110 shadow-emerald-500/50' 
+                      : 'bg-white text-slate-950 hover:bg-slate-100'
+                  }`}
                 >
-                  {isConnecting && !isListenModeActive ? <Loader2 size={20} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
+                  {isConnecting && !isListenModeActive ? (
+                    <Loader2 size={24} className="animate-spin text-emerald-500" />
+                  ) : isMicActive && !isListenModeActive ? (
+                    <div className="relative flex items-center justify-center">
+                      <div className="absolute w-10 h-10 bg-white/20 rounded-full animate-ping"></div>
+                      <Mic size={28} className="animate-bounce" />
+                    </div>
+                  ) : (
+                    <Mic size={28} />
+                  )}
                 </button>
+                {isMicActive && !isListenModeActive && (
+                  <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest animate-pulse">Dinleniyor...</span>
+                  </div>
+                )}
               </div>
             </div>
 
