@@ -8,6 +8,10 @@ import { float32To16BitPCM, arrayBufferToBase64, base64ToArrayBuffer, pcm16ToFlo
 import AudioVisualizer from './components/AudioVisualizer';
 import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
 
+import { db, auth } from './firebase';
+import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, deleteDoc, doc, getDocs, writeBatch } from 'firebase/firestore';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+
 // Live API Configuration
 const MODEL_NAME = 'gemini-3.1-flash-live-preview';
 const INPUT_SAMPLE_RATE = 16000;
@@ -96,7 +100,6 @@ const App: React.FC = () => {
 
   const [isConnected, setIsConnected] = useState(false);
   const [isMicActive, setIsMicActive] = useState(false);
-  const [isListen, setIsListen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const isMicActiveRef = useRef(false);
   useEffect(() => { isMicActiveRef.current = isMicActive; }, [isMicActive]);
@@ -105,6 +108,33 @@ const App: React.FC = () => {
   const [realtimeInput, setRealtimeInput] = useState('');
   const [realtimeOutput, setRealtimeOutput] = useState('');
   const [uiLanguage, setUiLanguage] = useState<UILanguage>('tr');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUserId(user?.uid || null);
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const login = async () => {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Giriş yapılamadı.");
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
+  };
 
   const t = (key: string, params?: Record<string, string>) => {
     const translations: Record<UILanguage, Record<string, string>> = {
@@ -441,10 +471,30 @@ const App: React.FC = () => {
     if (storedProvider) {
       setSelectedProvider(storedProvider as AIProvider);
     }
-
-    const savedArchive = localStorage.getItem('archivedSessions');
-    if (savedArchive) setSavedSessions(JSON.parse(savedArchive));
   }, []);
+
+  useEffect(() => {
+    if (!userId) {
+      setSavedSessions([]);
+      return;
+    }
+
+    const q = query(collection(db, 'users', userId, 'sessions'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const sessions: ArchivedSession[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        sessions.push({ 
+          id: doc.id, 
+          ...data,
+          date: data.createdAt?.toDate()?.toISOString() || new Date().toISOString()
+        } as ArchivedSession);
+      });
+      setSavedSessions(sessions);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
 
   useEffect(() => {
     if (apiKeys.gemini) {
@@ -702,8 +752,8 @@ const App: React.FC = () => {
     }
     setIsConnecting(true); setError(null); setIsMicActive(true);
     const isListenMode = mode === 'listen';
-    setIsListen(isListenMode);
     if (isListenMode) { setViewMode('listen'); setIsListenModeActive(true); setMessages([]); }
+    else { setIsListenModeActive(false); }
 
     try {
       if (!aiClientRef.current) {
@@ -728,7 +778,7 @@ const App: React.FC = () => {
       // Sensitivity Boost: Add a GainNode to amplify low signals
       const gainNode = audioCtx.createGain();
       // Boost gain significantly in listen mode to catch distant sounds
-      gainNode.gain.value = isListen ? 2.5 : 1.5; 
+      gainNode.gain.value = isListenModeActive ? 2.5 : 1.5; 
 
       // Dynamics Compressor: Helps normalize distant and near voices
       const compressor = audioCtx.createDynamicsCompressor();
@@ -748,7 +798,7 @@ const App: React.FC = () => {
         if (isNoiseMode && !isHoldingMic) return;
         const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
         sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
-          media: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
+          audio: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
         }));
       };
 
@@ -768,7 +818,7 @@ const App: React.FC = () => {
       const sessionPromise = aiClientRef.current.live.connect({
         model: MODEL_NAME,
         config: {
-          systemInstruction: isListen ? 
+          systemInstruction: isListenModeActive ? 
             `Sen SADECE bir simultane tercümansın. GÖREVİN: ${getLangDetails(targetLang).name} dilinde duyduğun her şeyi ANINDA ve BİREBİR ${getLangDetails(sourceLang).name} diline çevirmek. 
              KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
              Eğer bir soru duyarsan, o soruyu cevaplamak yerine ${getLangDetails(sourceLang).name} diline çevir. 
@@ -816,7 +866,7 @@ const App: React.FC = () => {
       if (input || output) {
         setMessages(prev => [...prev, 
           { id: Date.now().toString(), role: 'user', text: input || '...', timestamp: new Date(), isFinal: true },
-          { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListen ? sourceLang : targetLang }
+          { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListenModeActive ? sourceLang : targetLang }
         ]);
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
@@ -824,7 +874,7 @@ const App: React.FC = () => {
       
       // Automatically stop microphone when turn is complete as requested
       // Only auto-stop in bidirectional mode, not in continuous listen mode
-      if (!isListen) {
+      if (!isListenModeActive) {
         setIsMicActive(false);
         
         // Close session after a delay to allow final audio chunks to play
@@ -858,9 +908,9 @@ const App: React.FC = () => {
 
     // Set a fallback timer to stop connection if turnComplete is missed
     // This is only for bidirectional mode
-    if (!isListen && isConnected) {
+    if (!isListenModeActive && isConnected) {
       autoStopTimerRef.current = setTimeout(() => {
-        if (isConnected && !isListen) {
+        if (isConnected && !isListenModeActive) {
           setIsMicActive(false);
           setTimeout(() => stopConnection(), 1000);
         }
@@ -901,17 +951,32 @@ const App: React.FC = () => {
       }
     }
 
-    const newSession: ArchivedSession = {
-      id: Date.now().toString(),
+    const newSession: Omit<ArchivedSession, 'id'> = {
       date: new Date().toISOString(),
       targetLang: targetLang,
       preview: messages.length > 0 ? messages[0].text.substring(0, 50) + "..." : t('emptySession'),
       summary: summary,
       messages: [...messages]
     };
-    const updated = [newSession, ...savedSessions];
-    setSavedSessions(updated);
-    localStorage.setItem('archivedSessions', JSON.stringify(updated));
+
+    if (userId) {
+      try {
+        await addDoc(collection(db, 'users', userId, 'sessions'), {
+          ...newSession,
+          createdAt: serverTimestamp()
+        });
+      } catch (err) {
+        console.error("Archive error:", err);
+        const updated = [{ ...newSession, id: Date.now().toString() }, ...savedSessions];
+        setSavedSessions(updated);
+        localStorage.setItem('archivedSessions', JSON.stringify(updated));
+      }
+    } else {
+      const updated = [{ ...newSession, id: Date.now().toString() }, ...savedSessions];
+      setSavedSessions(updated);
+      localStorage.setItem('archivedSessions', JSON.stringify(updated));
+    }
+    
     setShowSaveModal(false);
     stopConnection();
   };
@@ -924,10 +989,18 @@ const App: React.FC = () => {
     }
   };
 
-  const deleteArchivedSession = (id: string) => {
-    const updated = savedSessions.filter(s => s.id !== id);
-    setSavedSessions(updated);
-    localStorage.setItem('archivedSessions', JSON.stringify(updated));
+  const deleteArchivedSession = async (id: string) => {
+    if (userId) {
+      try {
+        await deleteDoc(doc(db, 'users', userId, 'sessions', id));
+      } catch (err) {
+        console.error("Delete error:", err);
+      }
+    } else {
+      const updated = savedSessions.filter(s => s.id !== id);
+      setSavedSessions(updated);
+      localStorage.setItem('archivedSessions', JSON.stringify(updated));
+    }
     if (openedArchive?.id === id) setOpenedArchive(null);
   };
 
@@ -993,6 +1066,15 @@ const App: React.FC = () => {
           <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white">
             <Settings size={16} />
           </button>
+          {userId ? (
+            <button onClick={logout} className="p-2 rounded-full bg-slate-800 text-red-400 hover:bg-red-900/20" title="Çıkış Yap">
+              <LogOut size={16} />
+            </button>
+          ) : (
+            <button onClick={login} className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-500" title="Giriş Yap">
+              <User size={16} />
+            </button>
+          )}
         </div>
       </header>
 

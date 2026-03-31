@@ -33,10 +33,25 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidSession(data) {
+      return data.keys().hasAll(['date', 'targetLang', 'preview', 'messages', 'createdAt']) &&
+             data.targetLang is string &&
+             data.preview is string && data.preview.size() <= 500 &&
+             data.messages is list && data.messages.size() <= 1000 &&
+             data.createdAt is timestamp;
+    }
+
     match /users/{userId}/learnedWords/{wordId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidWord(request.resource.data);
       allow update: if false; // Words are immutable once learned
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/sessions/{sessionId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidSession(request.resource.data);
+      allow update: if false; // Sessions are immutable
       allow delete: if isOwner(userId);
     }
   }

@@ -11,12 +11,30 @@
         "createdAt": { "type": "string", "format": "date-time", "description": "When it was learned." }
       },
       "required": ["original", "translation", "userId", "createdAt"]
+    },
+    "ArchivedSession": {
+      "title": "ArchivedSession",
+      "description": "A saved translation session.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time", "description": "When the session occurred." },
+        "targetLang": { "type": "string", "description": "The target language code." },
+        "preview": { "type": "string", "description": "A short preview of the session." },
+        "summary": { "type": "string", "description": "An AI-generated summary." },
+        "messages": { "type": "array", "description": "The messages in the session." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Firestore server timestamp." }
+      },
+      "required": ["date", "targetLang", "preview", "messages", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}/learnedWords/{wordId}": {
       "schema": { "$ref": "LearnedWord" },
       "description": "Learned words for a user."
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": { "$ref": "ArchivedSession" },
+      "description": "Archived translation sessions for a user."
     }
   }
 }
