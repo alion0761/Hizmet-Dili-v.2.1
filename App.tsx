@@ -9,7 +9,7 @@ import AudioVisualizer from './components/AudioVisualizer';
 import { Mic, Globe, Settings, RotateCcw, Wifi, WifiOff, Download, Check, Trash2, X, Zap, Square, Send, ChevronDown, Sparkles, Loader2, Languages, ArrowRightLeft, ArrowRight, User, SplitSquareVertical, Maximize2, Minimize2, MessageSquare, Ear, ScrollText, Save, FolderOpen, Calendar, ChevronRight, FileText, Waves, Key, LogOut, ExternalLink, Keyboard, History, BookOpen, Volume2, Camera, RefreshCw } from 'lucide-react';
 
 // Live API Configuration
-const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';
+const MODEL_NAME = 'gemini-3.1-flash-live-preview';
 const INPUT_SAMPLE_RATE = 16000;
 const OUTPUT_SAMPLE_RATE = 24000;
 
@@ -96,6 +96,7 @@ const App: React.FC = () => {
 
   const [isConnected, setIsConnected] = useState(false);
   const [isMicActive, setIsMicActive] = useState(false);
+  const [isListen, setIsListen] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const isMicActiveRef = useRef(false);
   useEffect(() => { isMicActiveRef.current = isMicActive; }, [isMicActive]);
@@ -562,6 +563,10 @@ const App: React.FC = () => {
   };
 
   const stopConnection = useCallback(() => {
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
     setIsMicActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
@@ -696,8 +701,9 @@ const App: React.FC = () => {
       return;
     }
     setIsConnecting(true); setError(null); setIsMicActive(true);
-    const isListen = mode === 'listen';
-    if (isListen) { setViewMode('listen'); setIsListenModeActive(true); setMessages([]); }
+    const isListenMode = mode === 'listen';
+    setIsListen(isListenMode);
+    if (isListenMode) { setViewMode('listen'); setIsListenModeActive(true); setMessages([]); }
 
     try {
       if (!aiClientRef.current) {
@@ -782,7 +788,7 @@ const App: React.FC = () => {
         },
         callbacks: {
           onopen: () => { setIsConnecting(false); setIsConnected(true); triggerHaptic(); },
-          onmessage: (msg: LiveServerMessage) => handleServerMessage(msg, isListen),
+          onmessage: (msg: LiveServerMessage) => handleServerMessage(msg),
           onclose: stopConnection,
           onerror: (e) => { console.error(e); setError(t('connectionError')); stopConnection(); }
         }
@@ -792,7 +798,7 @@ const App: React.FC = () => {
     } catch (e: any) { setError(e.message); stopConnection(); }
   };
 
-  const handleServerMessage = (msg: LiveServerMessage, isListen: boolean) => {
+  const handleServerMessage = (msg: LiveServerMessage) => {
     if (msg.serverContent?.inputTranscription) {
       currentInputTranscription.current += msg.serverContent.inputTranscription.text;
       setRealtimeInput(currentInputTranscription.current);
@@ -817,19 +823,50 @@ const App: React.FC = () => {
       setRealtimeInput(''); setRealtimeOutput('');
       
       // Automatically stop microphone when turn is complete as requested
-      setIsMicActive(false);
-      
-      // Close session after a delay to allow final audio chunks to play
-      setTimeout(() => {
-        stopConnection();
-      }, 2000);
+      // Only auto-stop in bidirectional mode, not in continuous listen mode
+      if (!isListen) {
+        setIsMicActive(false);
+        
+        // Close session after a delay to allow final audio chunks to play
+        setTimeout(() => {
+          stopConnection();
+        }, 1500);
+      }
     }
   };
+
+  const lastModelAudioTimeRef = useRef<number>(0);
+  const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
+    };
+  }, []);
 
   const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
     if (!ctx) return;
     
+    lastModelAudioTimeRef.current = Date.now();
+    
+    // Clear any existing auto-stop timer
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+
+    // Set a fallback timer to stop connection if turnComplete is missed
+    // This is only for bidirectional mode
+    if (!isListen && isConnected) {
+      autoStopTimerRef.current = setTimeout(() => {
+        if (isConnected && !isListen) {
+          setIsMicActive(false);
+          setTimeout(() => stopConnection(), 1000);
+        }
+      }, 3000); // 3 seconds of silence from model = turn over
+    }
+
     // Ensure the audio context is resumed (required for autoplay policies)
     if (ctx.state === 'suspended') {
       await ctx.resume();
