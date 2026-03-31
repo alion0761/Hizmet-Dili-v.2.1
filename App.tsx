@@ -893,22 +893,22 @@ const App: React.FC = () => {
       </div>
 
       {/* HEADER */}
-      <header className="z-20 h-16 flex items-center justify-between px-5 backdrop-blur-md bg-black/40 pt-[env(safe-area-inset-top)]">
-        <div className="flex items-center gap-3">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-lg ${isListenModeActive ? 'bg-orange-500' : 'bg-blue-600'}`}>
+      <header className="z-20 min-h-16 flex items-center justify-between px-4 backdrop-blur-md bg-black/40 pt-[env(safe-area-inset-top)] pb-2">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center shadow-lg ${isListenModeActive ? 'bg-orange-500' : 'bg-blue-600'}`}>
             {isListenModeActive ? <Ear size={18} /> : <Languages size={18} />}
           </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-lg leading-none">Ai Live Translate</span>
-            <span className="text-[10px] text-slate-400 mt-1 uppercase tracking-widest">{isListenModeActive ? t('listeningMode') : t('developerBy')}</span>
+          <div className="flex flex-col overflow-hidden">
+            <span className="font-bold text-base sm:text-lg leading-none truncate">Ai Live Translate</span>
+            <span className="text-[9px] sm:text-[10px] text-slate-400 mt-1 uppercase tracking-widest truncate">{isListenModeActive ? t('listeningMode') : t('developerBy')}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <button 
             onClick={() => setShowEducationCoach(true)}
-            className="px-3 py-1.5 rounded-full bg-orange-600 text-white text-[10px] font-bold uppercase tracking-wider"
+            className="px-2 py-1 rounded-full bg-orange-600 text-white text-[9px] font-bold uppercase tracking-wider whitespace-nowrap"
           >
-            Eğitim Koçu
+            Koç
           </button>
           <button 
             onClick={() => {
@@ -920,30 +920,28 @@ const App: React.FC = () => {
               }
               triggerHaptic();
             }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${viewMode === 'photo' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            className={`flex items-center gap-1 p-2 rounded-full transition-all ${viewMode === 'photo' ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'}`}
             title={t('photoTranslation')}
           >
             <Camera size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t('photo')}</span>
           </button>
           <button 
             onClick={() => {
               setIsKeyboardVisible(!isKeyboardVisible);
               triggerHaptic();
             }} 
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all ${isKeyboardVisible ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
+            className={`flex items-center gap-1 p-2 rounded-full transition-all ${isKeyboardVisible ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}
             title={t('keyboardInput')}
           >
             <Keyboard size={16} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">{t('write')}</span>
           </button>
           {!isListenModeActive && viewMode !== 'archive' && (
             <button onClick={() => setViewMode(viewMode === 'chat' ? 'split' : 'chat')} className={`p-2 rounded-full transition-all ${viewMode === 'split' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-              {viewMode === 'chat' ? <SplitSquareVertical size={18} /> : <MessageSquare size={18} />}
+              {viewMode === 'chat' ? <SplitSquareVertical size={16} /> : <MessageSquare size={16} />}
             </button>
           )}
           <button onClick={() => setShowSettings(true)} className="p-2 rounded-full bg-slate-800 text-slate-400 hover:text-white">
-            <Settings size={20} />
+            <Settings size={16} />
           </button>
         </div>
       </header>
@@ -1163,14 +1161,14 @@ const App: React.FC = () => {
         )}
 
         {/* CONTROLS */}
-        <div className={`relative w-full p-6 backdrop-blur-2xl border-t border-white/5 pb-[calc(1.5rem+env(safe-area-inset-bottom,20px))] transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-950/90' : 'bg-slate-950/90'}`}>
-          <div className="h-6 w-full flex items-center justify-center mb-6">
+        <div className={`relative w-full p-4 sm:p-6 backdrop-blur-2xl border-t border-white/5 pb-[calc(1rem+env(safe-area-inset-bottom,20px))] transition-colors duration-1000 ${isListenModeActive ? 'bg-orange-950/90' : 'bg-slate-950/90'}`}>
+          <div className="h-6 w-full flex items-center justify-center mb-4 sm:mb-6">
             {isConnected && <AudioVisualizer analyser={inputAnalyserRef.current} isActive={true} color={isListenModeActive ? '#f97316' : '#10b981'} />}
           </div>
           
           {/* TEXT INPUT TRANSLATION */}
           {isKeyboardVisible && !isListenModeActive && (
-            <div className="max-w-md mx-auto mb-6 px-4 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="max-w-md mx-auto mb-4 sm:mb-6 px-2 animate-in slide-in-from-bottom-4 duration-300">
               <div className="relative flex items-center group">
                 <input 
                   type="text"
@@ -1178,35 +1176,35 @@ const App: React.FC = () => {
                   onChange={e => setTextInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleTextSubmit()}
                   placeholder={t('typeInLang', { lang: sourceDetails.name })}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-5 pr-14 text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 outline-none transition-all shadow-xl"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-3 sm:py-4 pl-4 sm:pl-5 pr-12 sm:pr-14 text-sm sm:text-base text-white placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 outline-none transition-all shadow-xl"
                 />
                 <button 
                   onClick={handleTextSubmit}
                   disabled={!textInput.trim() || isTextTranslating}
-                  className={`absolute right-2 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${textInput.trim() && !isTextTranslating ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400/30'}`}
+                  className={`absolute right-2 w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all ${textInput.trim() && !isTextTranslating ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400/30'}`}
                 >
-                  {isTextTranslating ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  {isTextTranslating ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 </button>
               </div>
             </div>
           )}
 
-          <div className="max-w-md mx-auto flex items-center justify-between gap-4">
+          <div className="max-w-md mx-auto flex items-center justify-around sm:justify-between gap-2 sm:gap-4">
             <button 
               onClick={() => !isConnected && setShowLangSelector('source')}
-              className={`w-14 h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-12 h-12 sm:w-14 sm:h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-xl sm:text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {sourceDetails.flag}
             </button>
 
             <button 
               onClick={handleSwapLanguages}
-              className={`p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`p-1.5 sm:p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              <ArrowRightLeft size={20} />
+              <ArrowRightLeft size={18} />
             </button>
             
-            <div className="flex gap-4 items-end -mt-6">
+            <div className="flex gap-3 sm:gap-4 items-end -mt-4 sm:-mt-6">
               <div className="relative group">
                 {isListenModeActive && <div className="absolute inset-0 rounded-full animate-ping bg-orange-500/40"></div>}
                 <button 
@@ -1215,9 +1213,9 @@ const App: React.FC = () => {
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('listen')} 
-                  className={`relative w-12 h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                  className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
                 >
-                  {isConnecting && isListenModeActive ? <Loader2 size={20} className="animate-spin" /> : <Ear size={20} />}
+                  {isConnecting && isListenModeActive ? <Loader2 size={18} className="animate-spin" /> : <Ear size={18} />}
                 </button>
               </div>
 
@@ -1229,16 +1227,16 @@ const App: React.FC = () => {
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => !isNoiseMode && startLiveSession('bidirectional')} 
-                  className={`relative w-16 h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
+                  className={`relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 transform active:scale-95 z-10 ${isConnected && !isListenModeActive ? 'bg-red-600 scale-105' : 'bg-white text-slate-950'}`}
                 >
-                  {isConnecting && !isListenModeActive ? <Loader2 size={24} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={22} fill="currentColor" /> : <Mic size={28} />}
+                  {isConnecting && !isListenModeActive ? <Loader2 size={20} className="animate-spin text-slate-400" /> : isConnected && !isListenModeActive ? <Square size={20} fill="currentColor" /> : <Mic size={24} />}
                 </button>
               </div>
             </div>
 
             <button 
               onClick={() => !isConnected && setShowLangSelector('target')}
-              className={`w-14 h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`w-12 h-12 sm:w-14 sm:h-14 bg-slate-800/50 border border-slate-700 rounded-2xl flex items-center justify-center text-xl sm:text-2xl shadow-lg active:scale-95 transition-transform ${isConnected ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {targetDetails.flag}
             </button>
@@ -1248,13 +1246,13 @@ const App: React.FC = () => {
 
       {/* LANGUAGE SELECTOR MODAL */}
       {showLangSelector && (
-        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-6 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold">{showLangSelector === 'source' ? 'Kaynak Dil' : 'Hedef Dil'}</h3>
-              <button onClick={() => setShowLangSelector(null)} className="p-2 bg-slate-800 rounded-full"><X size={18} /></button>
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-sm rounded-3xl shadow-2xl p-5 sm:p-6">
+            <div className="flex justify-between items-center mb-4 sm:mb-6">
+              <h3 className="text-lg sm:text-xl font-bold">{showLangSelector === 'source' ? 'Kaynak Dil' : 'Hedef Dil'}</h3>
+              <button onClick={() => setShowLangSelector(null)} className="p-2 bg-slate-800 rounded-full"><X size={16} /></button>
             </div>
-            <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 max-h-[60vh] overflow-y-auto no-scrollbar pr-1">
               {LANGUAGE_META.map((lang) => (
                 <button
                   key={lang.code}
@@ -1264,14 +1262,14 @@ const App: React.FC = () => {
                     setShowLangSelector(null);
                     triggerHaptic();
                   }}
-                  className={`flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+                  className={`flex items-center gap-2 sm:gap-3 p-3 sm:p-4 rounded-2xl border transition-all ${
                     (showLangSelector === 'source' ? sourceLang : targetLang) === lang.code
                       ? 'bg-blue-600 border-blue-500 text-white'
                       : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
                   }`}
                 >
-                  <span className="text-2xl">{lang.flag}</span>
-                  <span className="font-medium text-sm">{lang.name}</span>
+                  <span className="text-xl sm:text-2xl">{lang.flag}</span>
+                  <span className="font-medium text-xs sm:text-sm truncate">{lang.name}</span>
                 </button>
               ))}
             </div>
