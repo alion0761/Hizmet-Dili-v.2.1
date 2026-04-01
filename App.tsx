@@ -21,7 +21,7 @@ const OUTPUT_SAMPLE_RATE = 24000;
 const LANGUAGE_META = [
   { code: TargetLanguage.TURKISH, name: 'Türkçe', flag: '🇹🇷', short: 'TR', locale: 'tr-TR' },
   { code: TargetLanguage.ENGLISH, name: 'İngilizce', flag: '🇬🇧', short: 'EN', locale: 'en-US' },
-  { code: TargetLanguage.DUTCH, name: 'Hollandaca', flag: '🇳🇱', short: 'NL', locale: 'nl-NL' },
+  { code: TargetLanguage.DUTCH, name: 'Felemenkçe', flag: '🇳🇱', short: 'NL', locale: 'nl-NL' },
   { code: TargetLanguage.ARABIC, name: 'Arapça', flag: '🇸🇦', short: 'AR', locale: 'ar-SA' },
   { code: TargetLanguage.RUSSIAN, name: 'Rusça', flag: '🇷🇺', short: 'RU', locale: 'ru-RU' },
   { code: TargetLanguage.GERMAN, name: 'Almanca', flag: '🇩🇪', short: 'DE', locale: 'de-DE' },
@@ -78,7 +78,7 @@ const INITIAL_PACKS: OfflinePack[] = [
 
 const App: React.FC = () => {
   const [sourceLang, setSourceLang] = useState<TargetLanguage>(TargetLanguage.TURKISH);
-  const [targetLang, setTargetLang] = useState<TargetLanguage>(TargetLanguage.ENGLISH);
+  const [targetLang, setTargetLang] = useState<TargetLanguage>(TargetLanguage.DUTCH);
   const [translationContext, setTranslationContext] = useState<TranslationContext>(TranslationContext.GENERAL);
   const [apiKeys, setApiKeys] = useState<APIKeys>({});
   const [selectedProvider, setSelectedProvider] = useState<AIProvider>(AIProvider.GEMINI);
