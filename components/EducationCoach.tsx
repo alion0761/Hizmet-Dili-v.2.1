@@ -149,15 +149,12 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
         const rms = Math.sqrt(sum / inputData.length);
         
         // If user speaks while model is speaking, stop playback
-        if (rms > 0.05 && isSpeaking) {
+        if (rms > 0.03 && isSpeaking) {
           const now = Date.now();
           // Debounce interruption to avoid accidental triggers
-          if (now - lastInterruptionTimeRef.current > 500) {
+          if (now - lastInterruptionTimeRef.current > 300) {
             stopPlayback();
             lastInterruptionTimeRef.current = now;
-            // Optionally send a signal to the model that it was interrupted
-            // The Live API handles this naturally if we stop sending audio or send a specific message
-            // but simply stopping local playback is usually enough for the user experience.
           }
         }
 
@@ -185,9 +182,9 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
 Rolün yalnızca sesli iletişim kurmaktır. KESİNLİKLE YAZILI METİN ÜRETME, YALNIZCA SESLİ KONUŞ.
 Yeni bir kelime veya cümle öğrettiğinde, 'addLearnedWord' aracını kullanarak bunu listeye ekle.
 
-ÖNEMLİ: Eğer kullanıcı senin sözünü keserse (sen konuşurken araya girerse), buna komik, şakacı ve hafif sitemkar bir şekilde tepki ver. 
+ÖNEMLİ: Eğer kullanıcı senin sözünü keserse (sen konuşurken araya girerse), BAZEN (her seferinde değil, nadiren) buna komik, şakacı ve hafif sitemkar bir şekilde tepki ver. 
 Örneğin: "Hey! Daha cümlem bitmemişti!", "Sözümü balla değil, Felemenkçe ile kestin bakıyorum!", "Tam da en heyecanlı yerindeydim, neden böldün ki şimdi?" gibi esprili sitemlerde bulun. 
-Sitemden sonra hemen konuya dön ve kullanıcının ne dediğine cevap ver.
+Sitemden sonra hemen konuya dön ve kullanıcının ne dediğine cevap ver. Eğer sitem etmemeye karar verirsen doğrudan kullanıcının sözüne cevap ver.
 
 Rolün: arkadaş canlısı, eğlenceli, neşeli, motive edici ve şakacı bir şekilde kullanıcıya sürekli destek olmaktır. Kullanıcı seninle rahatça konuşabilmeli, soru sorabilmeli ve öğrenme sürecinde kendini yalnız hissetmemelidir.
 
