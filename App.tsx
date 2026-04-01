@@ -613,10 +613,6 @@ const App: React.FC = () => {
   };
 
   const stopConnection = useCallback(() => {
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
     setIsConnecting(false); setIsConnected(false); setIsListenModeActive(false);
     setIsMicActive(false);
     setRealtimeInput(''); setRealtimeOutput('');
@@ -871,52 +867,13 @@ const App: React.FC = () => {
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
       setRealtimeInput(''); setRealtimeOutput('');
-      
-      // Automatically stop microphone when turn is complete as requested
-      // Only auto-stop in bidirectional mode, not in continuous listen mode
-      if (!isListenModeActive) {
-        setIsMicActive(false);
-        
-        // Close session after a delay to allow final audio chunks to play
-        setTimeout(() => {
-          stopConnection();
-        }, 1500);
-      }
     }
   };
-
-  const lastModelAudioTimeRef = useRef<number>(0);
-  const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (autoStopTimerRef.current) clearTimeout(autoStopTimerRef.current);
-    };
-  }, []);
 
   const playAudio = async (base64: string) => {
     const ctx = outputAudioContextRef.current;
     if (!ctx) return;
     
-    lastModelAudioTimeRef.current = Date.now();
-    
-    // Clear any existing auto-stop timer
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-
-    // Set a fallback timer to stop connection if turnComplete is missed
-    // This is only for bidirectional mode
-    if (!isListenModeActive && isConnected) {
-      autoStopTimerRef.current = setTimeout(() => {
-        if (isConnected && !isListenModeActive) {
-          setIsMicActive(false);
-          setTimeout(() => stopConnection(), 1000);
-        }
-      }, 3000); // 3 seconds of silence from model = turn over
-    }
-
     // Ensure the audio context is resumed (required for autoplay policies)
     if (ctx.state === 'suspended') {
       await ctx.resume();
