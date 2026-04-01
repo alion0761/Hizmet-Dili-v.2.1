@@ -34,6 +34,8 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
   const sessionPromiseRef = useRef<Promise<any> | null>(null);
   const activeSessionRef = useRef<any>(null);
   const nextStartTimeRef = useRef<number>(0);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const lastInterruptionTimeRef = useRef<number>(0);
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
@@ -87,8 +89,25 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
     }
   };
 
+  const stopPlayback = useCallback(() => {
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+      } catch (e) {
+        // Source might already be stopped
+      }
+      currentAudioSourceRef.current = null;
+    }
+    setIsSpeaking(false);
+    // Reset nextStartTime to current time to avoid gaps after interruption
+    if (outputAudioContextRef.current) {
+      nextStartTimeRef.current = outputAudioContextRef.current.currentTime;
+    }
+  }, []);
+
   const stopConnection = useCallback(() => {
     setIsConnecting(false); setIsConnected(false); setIsSpeaking(false);
+    stopPlayback();
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
     if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
@@ -120,7 +139,29 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
       scriptProcessorRef.current = scriptProcessor;
       
       scriptProcessor.onaudioprocess = (e) => {
-        const pcmData = float32To16BitPCM(e.inputBuffer.getChannelData(0));
+        const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Voice Activity Detection (VAD) for interruption
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += inputData[i] * inputData[i];
+        }
+        const rms = Math.sqrt(sum / inputData.length);
+        
+        // If user speaks while model is speaking, stop playback
+        if (rms > 0.05 && isSpeaking) {
+          const now = Date.now();
+          // Debounce interruption to avoid accidental triggers
+          if (now - lastInterruptionTimeRef.current > 500) {
+            stopPlayback();
+            lastInterruptionTimeRef.current = now;
+            // Optionally send a signal to the model that it was interrupted
+            // The Live API handles this naturally if we stop sending audio or send a specific message
+            // but simply stopping local playback is usually enough for the user experience.
+          }
+        }
+
+        const pcmData = float32To16BitPCM(inputData);
         sessionPromiseRef.current?.then(s => s.sendRealtimeInput({ 
           audio: { mimeType: 'audio/pcm;rate=16000', data: arrayBufferToBase64(pcmData) } 
         }));
@@ -143,6 +184,10 @@ const EducationCoach: React.FC<EducationCoachProps> = ({ onClose, apiKey }) => {
           systemInstruction: `Sen, kullanıcının Felemenkçe öğrenme koçusun.
 Rolün yalnızca sesli iletişim kurmaktır. KESİNLİKLE YAZILI METİN ÜRETME, YALNIZCA SESLİ KONUŞ.
 Yeni bir kelime veya cümle öğrettiğinde, 'addLearnedWord' aracını kullanarak bunu listeye ekle.
+
+ÖNEMLİ: Eğer kullanıcı senin sözünü keserse (sen konuşurken araya girerse), buna komik, şakacı ve hafif sitemkar bir şekilde tepki ver. 
+Örneğin: "Hey! Daha cümlem bitmemişti!", "Sözümü balla değil, Felemenkçe ile kestin bakıyorum!", "Tam da en heyecanlı yerindeydim, neden böldün ki şimdi?" gibi esprili sitemlerde bulun. 
+Sitemden sonra hemen konuya dön ve kullanıcının ne dediğine cevap ver.
 
 Rolün: arkadaş canlısı, eğlenceli, neşeli, motive edici ve şakacı bir şekilde kullanıcıya sürekli destek olmaktır. Kullanıcı seninle rahatça konuşabilmeli, soru sorabilmeli ve öğrenme sürecinde kendini yalnız hissetmemelidir.
 
@@ -304,7 +349,13 @@ Kullanıcı Felemenkçe öğrenirken hem ilerlediğini hissetsin hem de keyif al
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.connect(outputAnalyserRef.current!);
-    source.onended = () => setIsSpeaking(false);
+    source.onended = () => {
+      if (currentAudioSourceRef.current === source) {
+        setIsSpeaking(false);
+        currentAudioSourceRef.current = null;
+      }
+    };
+    currentAudioSourceRef.current = source;
     source.start(Math.max(nextStartTimeRef.current, ctx.currentTime));
     nextStartTimeRef.current = Math.max(nextStartTimeRef.current, ctx.currentTime) + buffer.duration;
   };
