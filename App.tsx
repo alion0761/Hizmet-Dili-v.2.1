@@ -619,7 +619,8 @@ const App: React.FC = () => {
     if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
     if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
     if (inputAudioContextRef.current && inputAudioContextRef.current.state !== 'closed') inputAudioContextRef.current.close();
-    if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
+    // Do not close outputAudioContextRef so speech can finish playing
+    // if (outputAudioContextRef.current && outputAudioContextRef.current.state !== 'closed') outputAudioContextRef.current.close();
     if (activeSessionRef.current) activeSessionRef.current.close();
     sessionPromiseRef.current = null;
     triggerHaptic();
@@ -854,7 +855,14 @@ const App: React.FC = () => {
       setRealtimeOutput(currentOutputTranscription.current);
     }
     const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audio) playAudio(audio);
+    if (audio) {
+      if (isMicActive) {
+        setIsMicActive(false);
+        if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
+        if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
+      }
+      playAudio(audio);
+    }
     
     if (msg.serverContent?.turnComplete) {
       const input = currentInputTranscription.current.trim();
@@ -867,6 +875,7 @@ const App: React.FC = () => {
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
       setRealtimeInput(''); setRealtimeOutput('');
+      stopConnection();
     }
   };
 
