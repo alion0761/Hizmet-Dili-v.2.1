@@ -775,7 +775,7 @@ const App: React.FC = () => {
       // Sensitivity Boost: Add a GainNode to amplify low signals
       const gainNode = audioCtx.createGain();
       // Boost gain significantly in listen mode to catch distant sounds
-      gainNode.gain.value = isListenModeActive ? 2.5 : 1.5; 
+      gainNode.gain.value = isListenMode ? 2.5 : 1.5; 
 
       // Dynamics Compressor: Helps normalize distant and near voices
       const compressor = audioCtx.createDynamicsCompressor();
@@ -815,11 +815,11 @@ const App: React.FC = () => {
       const sessionPromise = aiClientRef.current.live.connect({
         model: MODEL_NAME,
         config: {
-          systemInstruction: isListenModeActive ? 
+          systemInstruction: isListenMode ? 
             `Sen SADECE bir simultane tercümansın. GÖREVİN: ${getLangDetails(targetLang).name} dilinde duyduğun her şeyi ANINDA ve BİREBİR ${getLangDetails(sourceLang).name} diline çevirmek. 
              KESİNLİKLE kendi yorumunu katma, sorulara cevap verme, tavsiye verme veya sohbete girme. 
              Eğer bir soru duyarsan, o soruyu cevaplamak yerine ${getLangDetails(sourceLang).name} diline çevir. 
-             Sadece çeviriyi seslendir. Başka hiçbir şey söyleme.` : 
+             Tüm çevirilerini anlık olarak metin (transcript) olarak sun.` : 
             `Sen SADECE bir simultane tercümansın. GÖREVİN: Duyduğun dili diğer dile ANINDA ve BİREBİR çevirmek. 
              Eğer duyduğun dil ${getLangDetails(sourceLang).name} ise, ${getLangDetails(targetLang).name} diline çevir. 
              Eğer duyduğun dil ${getLangDetails(targetLang).name} ise, ${getLangDetails(sourceLang).name} diline çevir. 
@@ -855,7 +855,7 @@ const App: React.FC = () => {
       setRealtimeOutput(currentOutputTranscription.current);
     }
     const audio = msg.serverContent?.modelTurn?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    if (audio) {
+    if (audio && !isListenMode) {
       if (isMicActive) {
         setIsMicActive(false);
         // Soft mute by disabling tracks to avoid audio hardware transition glitches
@@ -872,7 +872,7 @@ const App: React.FC = () => {
       if (input || output) {
         setMessages(prev => [...prev, 
           { id: Date.now().toString(), role: 'user', text: input || '...', timestamp: new Date(), isFinal: true },
-          { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListenModeActive ? sourceLang : targetLang }
+          { id: Date.now().toString() + 'm', role: 'model', text: output || '...', timestamp: new Date(), isFinal: true, langCode: isListenMode ? sourceLang : targetLang }
         ]);
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
