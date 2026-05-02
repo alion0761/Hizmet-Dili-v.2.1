@@ -858,8 +858,10 @@ const App: React.FC = () => {
     if (audio) {
       if (isMicActive) {
         setIsMicActive(false);
-        if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => t.stop());
-        if (scriptProcessorRef.current) scriptProcessorRef.current.disconnect();
+        // Soft mute by disabling tracks to avoid audio hardware transition glitches
+        if (mediaStreamRef.current) {
+          mediaStreamRef.current.getTracks().forEach(t => { t.enabled = false; });
+        }
       }
       playAudio(audio);
     }
@@ -875,7 +877,7 @@ const App: React.FC = () => {
       }
       currentInputTranscription.current = ''; currentOutputTranscription.current = '';
       setRealtimeInput(''); setRealtimeOutput('');
-      stopConnection();
+      // We no longer stop connection automatically to avoid hardware dips and keep context
     }
   };
 
@@ -1310,7 +1312,13 @@ const App: React.FC = () => {
                   onMouseUp={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onTouchStart={isNoiseMode ? () => setIsHoldingMic(true) : undefined}
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
-                  onClick={() => !isNoiseMode && startLiveSession('listen')} 
+                  onClick={() => {
+                    if (isListenModeActive) {
+                      stopConnection();
+                    } else if (!isNoiseMode) {
+                      startLiveSession('listen');
+                    }
+                  }} 
                   className={`relative w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 transform active:scale-95 ${isListenModeActive ? 'bg-orange-500 text-white scale-110' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
                 >
                   {isConnecting && isListenModeActive ? <Loader2 size={18} className="animate-spin" /> : <Ear size={18} />}
@@ -1331,7 +1339,15 @@ const App: React.FC = () => {
                   onTouchEnd={isNoiseMode ? () => setIsHoldingMic(false) : undefined}
                   onClick={() => {
                     if (isConnected && !isListenModeActive) {
-                      stopConnection();
+                      if (isMicActive) {
+                        // User wants to stop current listening turn
+                        setIsMicActive(false);
+                        if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => { t.enabled = false; });
+                      } else {
+                        // User wants to start a new listening turn in the same session
+                        setIsMicActive(true);
+                        if (mediaStreamRef.current) mediaStreamRef.current.getTracks().forEach(t => { t.enabled = true; });
+                      }
                     } else if (!isNoiseMode) {
                       startLiveSession('bidirectional');
                     }
